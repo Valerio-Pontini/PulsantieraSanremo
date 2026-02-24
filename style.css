@@ -765,25 +765,32 @@ body.tutorial-open{
     display:none;
   }
   .session{
-    display:grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items:stretch;
+    display:flex;
+    flex-wrap:nowrap;
+    align-items:center;
+    justify-content:flex-start;
     gap:8px;
     width:100%;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;
   }
   .session .pill,
   .session .ghost{
-    width:100%;
-    min-height:38px;
-    justify-content:center;
+    flex:0 0 auto;
+    width:auto;
+    min-height:36px;
+    justify-content:flex-start;
     padding:7px 9px;
     font-size:12px;
+    white-space:nowrap;
   }
   .session .ghost{
     padding:8px 9px;
   }
   .session .user-pill{
-    grid-column: span 2;
+    max-width:140px;
     justify-content:flex-start;
     overflow:hidden;
   }
@@ -793,9 +800,8 @@ body.tutorial-open{
     white-space:nowrap;
   }
   .theme-picker{
-    width:100%;
-    display:grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    width:auto;
+    display:flex;
     align-items:center;
     gap:6px;
   }
@@ -803,8 +809,9 @@ body.tutorial-open{
     font-size:11px;
   }
   .theme-select{
-    width:100%;
-    min-width:0;
+    width:auto;
+    min-width:110px;
+    max-width:132px;
   }
   .app{
     padding: 12px 10px 24px;
@@ -902,11 +909,12 @@ body.tutorial-open{
   .chart-legend{
     grid-template-columns: 1fr;
   }
-  .session{
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .session .user-pill{
-    grid-column: 1 / -1;
+    max-width:120px;
+  }
+  .theme-select{
+    min-width:96px;
+    max-width:112px;
   }
 }
 
