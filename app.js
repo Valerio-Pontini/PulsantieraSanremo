@@ -2808,14 +2808,23 @@ function drawGlobalChart(){
       if(filtered.length >= 2) points = filtered;
     }
   }
-  // Trim trailing time buckets without new interactions (e.g. votazioni disabilitate).
+  const firstActiveIdx = (() => {
+    for(let i = 0; i < points.length; i++){
+      if(Number(points[i]?.interactionCount || 0) > 0) return i;
+    }
+    return -1;
+  })();
   const lastActiveIdx = (() => {
     for(let i = points.length - 1; i >= 0; i--){
       if(Number(points[i]?.interactionCount || 0) > 0) return i;
     }
     return -1;
   })();
-  if(lastActiveIdx >= 1 && lastActiveIdx < points.length - 1){
+  // In "Tutta serata" show only the effective interaction window to avoid flattened tails.
+  if(globalStatsPeriodMin === "all" && firstActiveIdx >= 0 && lastActiveIdx >= firstActiveIdx){
+    points = points.slice(firstActiveIdx, lastActiveIdx + 1);
+  // For shorter periods, keep start window and only trim dead trailing buckets.
+  } else if(lastActiveIdx >= 1 && lastActiveIdx < points.length - 1){
     points = points.slice(0, lastActiveIdx + 1);
   }
   if(points.length < 2){
@@ -3067,13 +3076,13 @@ function renderGlobalArtistRankings(){
     const rows = arr(data[b.key]).map((row, idx) => `
       <div class="rank-row">
         <span>${idx + 1}. ${escapeHtml(row.name)} <span class="muted small">${arr(row.topTagEmojis).filter((e) => typeof e === "string" && e.trim()).join(" ")}</span></span>
-        <span class="mono">${b.fmt(row)} · ${row.count} voti</span>
+        <span class="mono">${b.fmt(row)} </span>
       </div>
     `).join("");
     return `
       <div class="rank-box">
         <div class="rank-title">${b.title}</div>
-        <div class="muted small">${data.totalArtists} artisti · ${data.totalVotes} voti</div>
+        <div class="muted small">${data.totalArtists} artisti </div>
         ${rows || '<div class="muted small">Dati insufficienti</div>'}
       </div>
     `;
