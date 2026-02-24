@@ -1,0 +1,73 @@
+:root{
+  --bg:#051b2a;
+  --panel:#0a2d43d9;
+  --card:#0d3853c9;
+  --stroke:#2e6280;
+  --text:#eaf8ff;
+  --muted:#9fcbdf;
+  --good:#69f2cc;
+  --warn:#ffd57d;
+  --bad:#ff8b8b;
+  --violet:#63c7ff;
+  --blue:#4be7d1;
+  --radius: 20px;
+  --radius2: 28px;
+}
+
+body{
+  font-family:"Century Gothic","Avenir","Segoe UI",sans-serif;
+  background:
+    radial-gradient(1300px 760px at 8% -8%, rgba(99,199,255,.35), transparent 58%),
+    radial-gradient(1000px 650px at 96% 0%, rgba(75,231,209,.24), transparent 58%),
+    radial-gradient(900px 700px at 50% 110%, rgba(70,163,255,.28), transparent 62%),
+    linear-gradient(160deg, #051a2a 0%, #0a2b40 52%, #0f3752 100%);
+}
+
+.topbar{
+  border-bottom-color: rgba(91,164,199,.48);
+  background: linear-gradient(to bottom, rgba(5,27,42,.92), rgba(5,27,42,.68));
+  backdrop-filter: blur(14px) saturate(1.15);
+}
+.logo{background: linear-gradient(135deg, rgba(99,199,255,.5), rgba(75,231,209,.36)); border-radius: 16px;}
+
+.energy-card, .card{
+  border-radius: 24px;
+  backdrop-filter: blur(12px) saturate(1.18);
+  border-color: rgba(69,133,167,.74);
+  background: linear-gradient(160deg, rgba(13,56,83,.62), rgba(9,39,59,.56));
+  box-shadow: 0 16px 34px rgba(0,0,0,.3), inset 0 1px 0 rgba(195,235,255,.08);
+}
+
+.tabs{
+  border-radius: 20px;
+  background: rgba(8,36,54,.5);
+  border-color: rgba(92,167,202,.5);
+}
+.tab{border-radius: 14px;}
+.tab.active{
+  background: linear-gradient(135deg, rgba(99,199,255,.25), rgba(75,231,209,.16));
+  border-color: rgba(116,203,255,.6);
+  box-shadow: 0 10px 20px rgba(3,18,28,.35);
+}
+
+.quick-chip,.chip,.titem,.rank-row,.score-box,.trend-box{
+  border-radius: 16px;
+  background: rgba(10,45,67,.7);
+  border-color: rgba(87,163,196,.54);
+}
+
+.input, select.input, textarea.input, .theme-select{
+  border-radius: 12px;
+  border-color: rgba(87,163,196,.6);
+  background: rgba(5,24,37,.58);
+}
+
+.primary{
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(99,199,255,.62), rgba(75,231,209,.48));
+  border-color: rgba(99,199,255,.45);
+}
+
+.chart{filter: drop-shadow(0 8px 20px rgba(0,0,0,.24));}
+.panel.active .card{animation: oceanDrift .32s ease both;}
+@keyframes oceanDrift{from{opacity:0; transform: translateY(8px);}to{opacity:1; transform: translateY(0);}}
