@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#0b0f1a" />
+  <title>Admin Control · Pulsantiera Sanremo</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="bg-blob blob1"></div>
+  <div class="bg-blob blob2"></div>
+  <div class="bg-blob blob3"></div>
+
+  <section class="auth-gate">
+    <div class="auth-card">
+      <div class="auth-logo" aria-hidden="true">
+        <img src="./assets/3EF2E05C-D576-407F-B92F-406F1C76FFE8.PNG" alt="" />
+      </div>
+      <h1 class="auth-title">Control Room</h1>
+      <p class="muted auth-sub">Area nascosta: disponibile solo per <b>pulsantiera_admin</b>.</p>
+
+      <div id="accessDenied" class="card" style="display:none;">
+        <div class="h3">Accesso negato</div>
+        <p class="muted small">Utente non autorizzato. Torna al login e accedi con l'utente admin.</p>
+        <div class="actions">
+          <button id="btnGoLogin" class="ghost" type="button">Vai al login</button>
+        </div>
+      </div>
+
+      <form id="adminAuthForm" class="auth-form" autocomplete="off">
+        <label class="field">
+          <span class="field-label">Email admin</span>
+          <input id="adminEmailInput" type="email" class="input" placeholder="admin@dominio.it" required />
+        </label>
+        <label class="field">
+          <span class="field-label">Password admin</span>
+          <input id="adminPasswordInput" type="password" class="input" placeholder="Inserisci password" required />
+        </label>
+        <button class="primary auth-btn" type="submit">Verifica accesso admin</button>
+      </form>
+
+      <section id="controlsPanel" class="card" style="display:none;">
+        <div class="card-head">
+          <div>
+            <div class="h3">Controlli serata</div>
+            <div id="panelMeta" class="muted small"></div>
+          </div>
+        </div>
+        <div class="list">
+          <label class="item">
+            <div class="meta">
+              <div class="title">Votazioni rapide</div>
+              <div class="sub">Pulsanti della sezione Reazioni</div>
+            </div>
+            <input id="toggleQuick" type="checkbox" />
+          </label>
+          <label class="item">
+            <div class="meta">
+              <div class="title">Votazioni cantante</div>
+              <div class="sub">Form voti performance / outfit / brano / riascolto</div>
+            </div>
+            <input id="toggleDeep" type="checkbox" />
+          </label>
+          <label class="item">
+            <div class="meta">
+              <div class="title">Predizioni</div>
+              <div class="sub">Pre-show, pre-classifica e snapshot finale</div>
+            </div>
+            <input id="togglePredictions" type="checkbox" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="btnSaveControls" class="primary" type="button">Salva impostazioni</button>
+          <button id="btnBackApp" class="ghost" type="button">Torna alla pulsantiera</button>
+        </div>
+      </section>
+
+      <section id="serataAccessPanel" class="card" style="display:none;">
+        <div class="card-head">
+          <div>
+            <div class="h3">Accesso alle serate</div>
+            <div class="muted small">Scegli quali serate sono selezionabili al login per tutti gli utenti</div>
+          </div>
+          <div class="actions">
+            <button id="btnSerateAllOn" class="ghost" type="button">Tutte ON</button>
+            <button id="btnSerateAllOff" class="ghost" type="button">Tutte OFF</button>
+          </div>
+        </div>
+        <div class="list">
+          <label class="item"><div class="meta"><div class="title">Serata 1</div></div><input type="checkbox" data-serata-access="1" /></label>
+          <label class="item"><div class="meta"><div class="title">Serata 2</div></div><input type="checkbox" data-serata-access="2" /></label>
+          <label class="item"><div class="meta"><div class="title">Serata 3</div></div><input type="checkbox" data-serata-access="3" /></label>
+          <label class="item"><div class="meta"><div class="title">Serata 4</div></div><input type="checkbox" data-serata-access="4" /></label>
+          <label class="item"><div class="meta"><div class="title">Serata 5 (Finale)</div></div><input type="checkbox" data-serata-access="5" /></label>
+        </div>
+      </section>
+
+      <section id="artistControlsPanel" class="card" style="display:none;">
+        <div class="card-head">
+          <div>
+            <div class="h3">Voto per cantante</div>
+            <div class="muted small">Abilita/disabilita singolarmente ogni artista</div>
+          </div>
+          <div class="actions">
+            <button id="btnArtistsAllOn" class="ghost" type="button">Tutti ON</button>
+            <button id="btnArtistsAllOff" class="ghost" type="button">Tutti OFF</button>
+          </div>
+        </div>
+        <div id="artistControlsList" class="list"></div>
+      </section>
+
+      <section id="predictionControlsPanel" class="card" style="display:none;">
+        <div class="card-head">
+          <div>
+            <div class="h3">Campi predizioni</div>
+            <div class="muted small">Controllo granulare per ogni singolo campo</div>
+          </div>
+          <div class="actions">
+            <button id="btnPredAllOn" class="ghost" type="button">Tutti ON</button>
+            <button id="btnPredAllOff" class="ghost" type="button">Tutti OFF</button>
+          </div>
+        </div>
+        <div id="predictionControlsList" class="list"></div>
+      </section>
+
+      <p id="adminStatus" class="muted small auth-status"></p>
+    </div>
+  </section>
+
+  <script src="./firebase-config.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js" defer></script>
+  <script src="./admin-control.js" defer></script>
+</body>
+</html>
