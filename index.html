@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="theme-color" content="#0b0f1a" />
+  <title>Pulsantiera Sanremo</title>
+  <link rel="stylesheet" href="./style.css" />
+  <link id="themeStylesheet" rel="stylesheet" href="" />
+</head>
+
+<body>
+  <div class="bg-blob blob1"></div>
+  <div class="bg-blob blob2"></div>
+  <div class="bg-blob blob3"></div>
+
+  <header class="topbar" id="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <img src="./assets/3EF2E05C-D576-407F-B92F-406F1C76FFE8.PNG" alt="" />
+      </div>
+      <div>
+        <div class="brand-title">PulsantieraSanremo</div>
+        <div class="brand-sub">Segui la serata · Vota · Ripeti</div>
+      </div>
+    </div>
+
+    <div class="session">
+      <label class="theme-picker pill" for="themeSelect" title="Scegli il tema grafico">
+        <span class="muted">Tema</span>
+        <select id="themeSelect" class="input fancy-select theme-select" aria-label="Tema grafico">
+          <option value="base">Base</option>
+        </select>
+      </label>
+      <div class="pill" id="pillBoost" title="Boost XP attivo quando si accende">
+        <span class="dot" id="boostDot"></span>
+        <span id="boostText">Boost: OFF</span>
+      </div>
+      <div class="pill">
+        <span class="muted">XP</span>
+        <span id="xpValue" class="mono">0</span>
+      </div>
+      <div class="pill">
+        <span id="userInfo" class="mono">—</span>
+      </div>
+      <button class="ghost" id="btnSwitchUser" title="Cambia utente">Esci</button>
+    </div>
+  </header>
+
+  <main class="app" id="appRoot">
+    <!-- ENERGY BAR -->
+    <section class="energy-card">
+      <div class="energy-top">
+        <div>
+          <div class="h2">Sanremometro 💐</div>
+          <div class="muted">Come sta andando la tua serata</div>
+        </div>
+      </div>
+
+      <div class="energy-meter" aria-label="Energy meter">
+        <div class="energy-track"></div>
+        <div class="energy-fill" id="energyFill"></div>
+        <div class="energy-glow" id="energyGlow"></div>
+      </div>
+
+      <div class="energy-labels">
+        <span>🧊</span><span>😴</span><span>😬</span><span>😐</span><span>🙂</span><span>👀</span><span>🎶</span><span>💃</span><span>🚀</span><span>👑</span><span>🌋</span>
+      </div>
+      <div id="tempComment" class="temp-comment muted">⚖️ Equilibrio totale, temperatura stabile.</div>
+    </section>
+
+    <!-- TABS -->
+    <nav class="tabs" role="tablist" aria-label="Navigazione">
+      <button class="tab active" data-tab="quick" role="tab" aria-selected="true">Reazioni 🥸</button>
+      <button class="tab" data-tab="deep" role="tab" aria-selected="false">Cantanti 🎤</button>
+      <button class="tab" data-tab="stats" role="tab" aria-selected="false">Analitica 📈</button>
+      <button class="tab" data-tab="challenge" role="tab" aria-selected="false">Predizioni 🔮</button>
+      <button class="tab" data-tab="global" role="tab" aria-selected="false">Globale 🌍</button>
+    </nav>
+
+    <!-- PANELS -->
+    <section class="panel active" id="tab-quick" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <div class="h2">Pulsantiera Live</div>
+          <div class="muted">Racconta la puntata: scegli il pulsante più adatto a questo momento</div>
+          <div id="quickControlMsg" class="control-msg"></div>
+        </div>
+        <div class="right-actions">
+          <button class="ghost" id="btnUndo" title="Annulla ultima azione">Undo</button>
+        </div>
+      </div>
+
+      <div id="quickDisabledBanner" class="control-banner" hidden>
+        <div class="control-banner-title">Votazioni rapide chiuse</div>
+        <div class="control-banner-sub muted">
+          I pulsanti voto saranno abilitati solo durante la diretta.
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="field">
+          <span class="field-label">Commento (opzionale)</span>
+          <input id="quickNoteInput" class="input" maxlength="80" placeholder="Es. entrata fortissima, pubblico acceso..." />
+        </label>
+      </div>
+
+      <div class="grid">
+        <div id="quickGrid" class="quick-grid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="h3">Timeline (ultimi 12)</div>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-deep" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <div class="h2">Voto Performance</div>
+          <div class="muted">Nessun campo è obbligatorio</div>
+          <div id="deepControlMsg" class="control-msg"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <label class="field">
+            <span class="field-label">Artista da valutare</span>
+            <select id="artistSelect" class="input fancy-select">
+              <option value="">Caricamento artisti...</option>
+            </select>
+            <span id="artistLoadStatus" class="muted small"></span>
+          </label>
+        </div>
+
+        <div class="metric-grid row-2">
+          <div class="field metric">
+            <div class="field-label">Esibizione <span class="muted"></span></div>
+            <div class="slider-wrap">
+              <input id="performanceSlider" type="range" min="1" max="10" step="1" value="7" />
+              <div class="slider-value mono" id="performanceVal">7</div>
+            </div>
+          </div>
+          <div class="field metric">
+            <div class="field-label">Outfit <span class="muted"></span></div>
+            <div class="slider-wrap">
+              <input id="outfitSlider" type="range" min="1" max="10" step="1" value="7" />
+              <div class="slider-value mono" id="outfitVal">7</div>
+            </div>
+          </div>
+          <div class="field metric">
+            <div class="field-label">Brano <span class="muted"></span></div>
+            <div class="slider-wrap">
+              <input id="songSlider" type="range" min="1" max="10" step="1" value="7" />
+              <div class="slider-value mono" id="songVal">7</div>
+            </div>
+          </div>
+          <div class="field metric">
+            <div class="field-label">La riascolterò <span class="muted"></span></div>
+            <div class="slider-wrap">
+              <input id="relistenSlider" type="range" min="1" max="10" step="1" value="7" />
+              <div class="slider-value mono" id="relistenVal">7</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row row-2">
+          <label class="field">
+            <span class="field-label">Commento (opzionale)</span>
+            <input id="noteInput" class="input" maxlength="60" placeholder="40-60 caratteri max: tipo 'ritornello fortissimo'"/>
+          </label>
+          <div class="field">
+            <div class="field-label">Tag</div>
+            <div class="toggles">
+              <button class="toggle" data-toggle="outfitTop">👗 Outfit top</button>
+              <button class="toggle" data-toggle="stageTop">🎤 Presenza</button>
+              <button class="toggle" data-toggle="winner">👑 Può vincere</button>
+              <button class="toggle" data-toggle="relisten">🔁 Riascolterei</button>
+              <button class="toggle" data-toggle="radiohit">📻 Radio hit</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="btnSaveDeep">Salva voto</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="h3">Ultimi voti</div>
+        </div>
+        <div id="deepList" class="list"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-stats" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <div class="h2">Analitica</div>
+          <div class="muted">Dati seri, presentati male 😌</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat card">
+          <div class="stat-title">Media Voto</div>
+          <div class="stat-value mono" id="avgSong">—</div>
+          <div class="stat-sub muted">🎵 media brano</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Termometro Ariston</div>
+          <div class="stat-value mono" id="kpiTermometro">—</div>
+          <div class="stat-sub muted">🌡️ temperatura emotiva complessiva</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Montagne Russe Live</div>
+          <div class="stat-value mono" id="kpiRollercoaster">—</div>
+          <div class="stat-sub muted">🎢 imprevedibilità della serata</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Contatore Fuochi</div>
+          <div class="stat-value mono" id="kpiFuochi">—</div>
+          <div class="stat-sub muted">🎆 picchi memorabili</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Allarme Ghiaccio</div>
+          <div class="stat-value mono" id="kpiGhiaccio">—</div>
+          <div class="stat-sub muted">🧊 momenti critici</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Equilibrio Festival</div>
+          <div class="stat-value mono" id="kpiEquilibrio">—</div>
+          <div class="stat-sub muted">⚖️ fluidità su fascia centrale</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="h3">Andamento serata</div>
+        </div>
+        <div class="chart-controls">
+          <div class="chart-switch" role="tablist" aria-label="Modalità grafico analitica">
+            <button class="switch-btn active" id="btnChartKpi" data-chart-mode="kpi" role="tab" aria-selected="true">KPI Serata</button>
+            <button class="switch-btn" id="btnChartArtists" data-chart-mode="artists" role="tab" aria-selected="false">Analitica Cantanti</button>
+          </div>
+          <label class="chart-period">
+            <span class="muted small">Periodo</span>
+            <select id="chartPeriodSelect" class="input chart-period-select fancy-select">
+              <option value="all">Tutta serata</option>
+              <option value="60">Ultima ora</option>
+              <option value="30">Ultimi 30 min</option>
+              <option value="10">Ultimi 10 min</option>
+            </select>
+          </label>
+        </div>
+        <div id="chartLegend" class="chart-legend"></div>
+        <canvas id="chart" width="900" height="220" class="chart"></canvas>
+        <div id="chartPointInfo" class="chart-point-info muted small">Clicca un punto del grafico per vedere i dettagli.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Classifiche Cantanti</div>
+          </div>
+          <button class="switch-btn" id="btnToggleSingerRankings" type="button">Mostra tutte</button>
+        </div>
+        <div id="singerRankings" class="rank-grid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Emoji Più Usate</div>
+            <div class="muted">classifica delle reazioni</div>
+          </div>
+        </div>
+        <div id="quickEmojiRankings" class="rank-grid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Diario Serata</div>
+            <div class="muted">cronologia completa delle reazioni</div>
+          </div>
+          <div id="statsDiaryMeta" class="muted small">—</div>
+        </div>
+        <div id="statsDiaryList" class="timeline diary-list"></div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-global" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <div class="h2">Analitica Globale</div>
+          <div class="muted">Media KPI su tutti gli utenti cloud della stessa serata.</div>
+        </div>
+        <div class="right-actions">
+          <button class="ghost" id="btnGlobalRefresh" title="Forza aggiornamento globale">Aggiorna ora</button>
+          <div id="globalStatus" class="muted small">In attesa dati cloud…</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat card">
+          <div class="stat-title">Media Voto Globale</div>
+          <div class="stat-value mono" id="gAvgSong">—</div>
+          <div class="stat-sub muted">🎵 media utenti</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Termometro Ariston</div>
+          <div class="stat-value mono" id="gKpiTermometro">—</div>
+          <div class="stat-sub muted">🌡️ temperatura media</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Montagne Russe Live</div>
+          <div class="stat-value mono" id="gKpiRollercoaster">—</div>
+          <div class="stat-sub muted">🎢 imprevedibilità media</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Contatore Fuochi</div>
+          <div class="stat-value mono" id="gKpiFuochi">—</div>
+          <div class="stat-sub muted">🎆 picchi medi</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Allarme Ghiaccio</div>
+          <div class="stat-value mono" id="gKpiGhiaccio">—</div>
+          <div class="stat-sub muted">🧊 criticità medie</div>
+        </div>
+        <div class="stat card">
+          <div class="stat-title">Equilibrio Festival</div>
+          <div class="stat-value mono" id="gKpiEquilibrio">—</div>
+          <div class="stat-sub muted">⚖️ fluidità media</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div class="h3">KPI Globali Nel Tempo</div>
+          <div class="muted">andamento medio utenti</div>
+        </div>
+        <div class="chart-controls">
+          <label class="chart-period">
+            <span class="muted small">Periodo</span>
+            <select id="globalChartPeriodSelect" class="input chart-period-select fancy-select">
+              <option value="all">Tutta serata</option>
+              <option value="60">Ultima ora</option>
+              <option value="30">Ultimi 30 min</option>
+              <option value="10">Ultimi 10 min</option>
+            </select>
+          </label>
+        </div>
+        <div id="globalChartLegend" class="chart-legend"></div>
+        <canvas id="globalChart" width="900" height="220" class="chart"></canvas>
+        <div id="globalChartInfo" class="chart-point-info muted small">Aggiorna con il pulsante per ricaricare i dati globali.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Classifiche Artisti Globali</div>
+            <div class="muted">medie dei voti di tutti gli utenti</div>
+          </div>
+        </div>
+        <div id="globalArtistRankings" class="rank-grid">
+          <div class="muted small">In attesa dati globali...</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Predizioni Globali</div>
+            <div class="muted">trend collettivi su podi e ultimi classificati</div>
+          </div>
+        </div>
+        <div id="globalPredictionSummary" class="stats-grid"></div>
+        <div id="globalPredictionRankings" class="rank-grid"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Emoji Reazioni Più Usate (Globale)</div>
+            <div class="muted">classifica dei pulsanti rapidi più premuti</div>
+          </div>
+        </div>
+        <div id="globalQuickEmojiRankings" class="rank-grid"></div>
+      </div>
+
+    </section>
+
+    <section class="panel" id="tab-challenge" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <div class="h2">🔮 Predizioni Serata</div>
+          <div class="muted">Compila le previsioni di puntata e traccia come cambiano quelle della finale ✨</div>
+          <div id="predControlMsg" class="control-msg"></div>
+        </div>
+      </div>
+
+      <div class="card prediction-phase">
+        <div class="card-head">
+          <div>
+            <div class="h3">🎬 Predizioni Inizio Puntata</div>
+            <div class="muted">prima di sentire le canzoni</div>
+          </div>
+          <span class="phase-badge">🎬 Pre-show</span>
+        </div>
+        <div class="prediction-grid">
+          <label class="field"><span class="field-label">🥇 Primo Classificato</span><select id="predPreShowPodium1" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">🥈 Secondo Classificato</span><select id="predPreShowPodium2" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">🥉 Terzo Classificato</span><select id="predPreShowPodium3" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">📉 Ultimo classificato</span><select id="predPreShowLast" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">Predizione libera </span><input id="predPreShowFree1" class="input" placeholder="Es. ospite sorpresa" /></label>
+          <label class="field"><span class="field-label">Predizione libera </span><input id="predPreShowFree2" class="input" placeholder="Es. duetto inatteso" /></label>
+          <label class="field"><span class="field-label">Predizione libera </span><input id="predPreShowFree3" class="input" placeholder="Es. monologo forte" /></label>
+        </div>
+        <div class="actions">
+          <button class="primary" id="btnSavePreShow">💾 Salva Inizio Puntata</button>
+          <div id="preShowSavedAt" class="muted small">Non ancora salvate</div>
+        </div>
+      </div>
+
+      <div class="card prediction-phase">
+        <div class="card-head">
+          <div>
+            <div class="h3">📊 Predizioni Fine Puntata</div>
+            <div class="muted">prima della classifica</div>
+          </div>
+          <span class="phase-badge">📊 Pre-classifica</span>
+        </div>
+        <div class="prediction-grid">
+          <label class="field"><span class="field-label">🥇 Primo Classificato</span><select id="predPreRankingPodium1" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">🥈 Secondo Classificato</span><select id="predPreRankingPodium2" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">🥉 Terzo Classificato</span><select id="predPreRankingPodium3" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">📉 Ultimo classificato</span><select id="predPreRankingLast" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">Predizione libera 1</span><input id="predPreRankingFree1" class="input" placeholder="Es. standing ovation" /></label>
+          <label class="field"><span class="field-label">Predizione libera 2</span><input id="predPreRankingFree2" class="input" placeholder="Es. trend social" /></label>
+          <label class="field"><span class="field-label">Predizione libera 3</span><input id="predPreRankingFree3" class="input" placeholder="Es. polemica finale" /></label>
+        </div>
+        <div class="actions">
+          <button class="primary" id="btnSavePreRanking">💾 Salva Fine Puntata</button>
+          <div id="preRankingSavedAt" class="muted small">Non ancora salvate</div>
+        </div>
+      </div>
+
+      <div class="card prediction-phase">
+        <div class="card-head">
+          <div>
+            <div class="h3">🏁 Predizioni Serata Finale</div>
+            <div class="muted">Osserva come cambia la tua classifica nel corso delle serate!</div>
+          </div>
+          <span class="phase-badge">🏁 Finale</span>
+        </div>
+        <div class="prediction-grid">
+          <label class="field"><span class="field-label">🥇 Primo Classificato</span><select id="predFinalePodium1" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">🥈 Secondo Calssificato</span><select id="predFinalePodium2" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">🥉 Terzo Classificato</span><select id="predFinalePodium3" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">📉 Ultimo classificato finale</span><select id="predFinaleLast" class="input prediction-select"><option value="">Seleziona cantante...</option></select></label>
+          <label class="field"><span class="field-label">Predizione libera 1</span><input id="predFinaleFree1" class="input" placeholder="Es. vincitore critica" /></label>
+          <label class="field"><span class="field-label">Predizione libera 2</span><input id="predFinaleFree2" class="input" placeholder="Es. sorpresa top 5" /></label>
+          <label class="field"><span class="field-label">Predizione libera 3</span><input id="predFinaleFree3" class="input" placeholder="Es. outsider in rimonta" /></label>
+        </div>
+        <div class="actions">
+          <button class="primary" id="btnAddFinaleSnapshot">📌 Salva Pronostico Finale</button>
+        </div>
+        <div id="finaleHistoryList" class="list"></div>
+      </div>
+    </section>
+
+    <footer class="footer">
+    </footer>
+  </main>
+
+  <div id="tutorialOverlay" class="tutorial-overlay" hidden>
+    <div class="tutorial-card">
+      <div id="tutorialStepCount" class="muted small">Tutorial</div>
+      <div id="tutorialTitle" class="h3">Benvenuto</div>
+      <p id="tutorialBody" class="muted tutorial-body"></p>
+      <div class="actions">
+        <button id="tutorialSkip" class="ghost" type="button">Salta</button>
+        <button id="tutorialBack" class="ghost" type="button">Indietro</button>
+        <button id="tutorialNext" class="primary" type="button">Avanti</button>
+        <button id="tutorialDone" class="primary" type="button" hidden>Inizia</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="./firebase-config.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js" defer></script>
+  <script src="./app.js" defer></script>
+</body>
+</html>
