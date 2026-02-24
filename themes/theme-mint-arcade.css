@@ -1,0 +1,81 @@
+:root{
+  --bg:#071918;
+  --panel:#0b2522d6;
+  --card:#10312ccc;
+  --stroke:#1e5b53;
+  --text:#e8fff9;
+  --muted:#8fdccc;
+  --good:#42f8c1;
+  --warn:#ffe08a;
+  --bad:#ff7f7f;
+  --violet:#40e0d0;
+  --blue:#63f5b0;
+  --radius: 14px;
+  --radius2: 18px;
+}
+
+body{
+  font-family:"Gill Sans","Avenir Next","Segoe UI",sans-serif;
+  background:
+    radial-gradient(1000px 600px at 12% 12%, rgba(66,248,193,.28), transparent 56%),
+    radial-gradient(860px 480px at 88% 18%, rgba(99,245,176,.2), transparent 58%),
+    repeating-linear-gradient(135deg, rgba(74,255,213,.03) 0 14px, transparent 14px 28px),
+    linear-gradient(140deg, #071a18 0%, #0b2826 55%, #10342f 100%);
+}
+
+.topbar{
+  border-bottom-color: rgba(77,190,161,.45);
+  box-shadow: 0 8px 24px rgba(0,0,0,.25);
+}
+.logo{border-radius: 10px; background: linear-gradient(135deg, rgba(66,248,193,.55), rgba(99,245,176,.45));}
+.brand-title{font-weight:900; text-transform: uppercase; font-size:15px; letter-spacing:.8px;}
+.brand-sub{text-transform: uppercase; font-size:11px; letter-spacing:.5px;}
+
+.tabs{
+  border-radius: 12px;
+  border-style: dashed;
+  border-color: rgba(66,248,193,.4);
+  background: rgba(7,31,29,.6);
+}
+.tab{
+  border-radius: 10px;
+  border:1px solid transparent;
+  text-transform: uppercase;
+  letter-spacing:.5px;
+  font-size:12px;
+}
+.tab.active{
+  background: linear-gradient(135deg, rgba(66,248,193,.22), rgba(99,245,176,.18));
+  border-color: rgba(66,248,193,.55);
+  box-shadow: inset 0 0 0 1px rgba(170,255,231,.22);
+}
+
+.energy-card,.card{
+  border-radius: 14px;
+  border-style: dashed;
+  border-color: rgba(57,191,158,.48);
+  box-shadow: 0 14px 30px rgba(0,0,0,.34), inset 0 1px 0 rgba(133,255,224,.08);
+}
+
+.quick-chip,.chip,.titem,.rank-row{
+  border-radius: 12px;
+  border-style: dashed;
+  border-color: rgba(65,199,168,.45);
+}
+
+.pad{
+  border-radius: 16px;
+  border-style: dashed;
+  border-color: rgba(66,248,193,.5);
+}
+
+.primary, .ghost{
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: .45px;
+  font-size: 12px;
+}
+.primary{background: linear-gradient(135deg, rgba(66,248,193,.48), rgba(99,245,176,.42));}
+
+.panel.active .card{animation: mintPop .24s ease both;}
+@keyframes mintPop{from{opacity:0; transform: translateY(8px) scale(.99);}to{opacity:1; transform: translateY(0) scale(1);}}
