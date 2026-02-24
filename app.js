@@ -554,12 +554,47 @@ const tutorialState = {
   index: 0,
   steps: [],
 };
+let chartResizeTimer = null;
 
 function pushRuntimeDebug(msg){
   const line = `${fmtTime(now())} · ${msg}`;
   runtimeDebug.events.push(line);
   if(runtimeDebug.events.length > 20) runtimeDebug.events.shift();
   console.log("[runtime]", msg);
+}
+
+function getResponsiveChartHeight(){
+  const vw = window.innerWidth || 1024;
+  if(vw <= 420) return 280;
+  if(vw <= 760) return 250;
+  return 220;
+}
+
+function syncCanvasSize(canvasEl){
+  if(!canvasEl) return false;
+  const parentW = canvasEl.parentElement?.clientWidth || canvasEl.clientWidth || 900;
+  const width = Math.max(280, Math.floor(parentW));
+  const height = getResponsiveChartHeight();
+  if(canvasEl.width === width && canvasEl.height === height) return false;
+  canvasEl.width = width;
+  canvasEl.height = height;
+  return true;
+}
+
+function redrawChartsForViewport(){
+  const changedStats = syncCanvasSize(chart);
+  const changedGlobal = syncCanvasSize(globalChart);
+  const statsPanel = $("#tab-stats");
+  const globalPanel = $("#tab-global");
+  if(changedStats && statsPanel?.classList.contains("active")) drawChart();
+  if(changedGlobal && globalPanel?.classList.contains("active")) drawGlobalChart();
+}
+
+function scheduleChartResize(){
+  clearTimeout(chartResizeTimer);
+  chartResizeTimer = setTimeout(() => {
+    redrawChartsForViewport();
+  }, 120);
 }
 
 window.addEventListener("error", (ev) => {
@@ -579,6 +614,11 @@ window.addEventListener("unhandledrejection", (ev) => {
   if(globalDebug){
     globalDebug.textContent = `Runtime rejection: ${reason}\n\n${runtimeDebug.events.join("\n")}`;
   }
+});
+
+window.addEventListener("resize", scheduleChartResize);
+window.addEventListener("orientationchange", () => {
+  setTimeout(() => redrawChartsForViewport(), 180);
 });
 
 function controlsStorageKey(serata = cloud.serata){
@@ -2332,6 +2372,7 @@ function drawArtistsChart(){
 
 function drawChart(){
   if(!chart) return;
+  syncCanvasSize(chart);
   if(statsChartMode === "artists") drawArtistsChart();
   else drawKpiChart();
 }
@@ -2706,15 +2747,27 @@ function buildGlobalAggregate(snapshots){
   const bucketMs = Math.max(1, Math.ceil(span / bucketCount));
   const checkpoints = Array.from({ length: bucketCount }, (_, i) => start + i * bucketMs);
 
-  const points = checkpoints.map((ts) => {
+  let markIdx = 0;
+  const points = checkpoints.map((ts, idx) => {
+    const prevTs = idx === 0 ? (start - 1) : checkpoints[idx - 1];
+    let interactionCount = 0;
+    while(markIdx < marks.length && marks[markIdx] <= ts){
+      if(marks[markIdx] > prevTs) interactionCount += 1;
+      markIdx += 1;
+    }
     const ks = snapshots
       .filter((s) => arr(s.actions).some((a) => a.t <= ts) || arr(s.deepVotes).some((v) => v.t <= ts))
       .map((s) => computeKpisForState(s, ts));
     if(ks.length === 0){
-      return { t: ts, values: { avgVote: null, termometro: 0, roller: 0, fuochi: 0, ghiaccio: 0, equilibrio: 0 } };
+      return {
+        t: ts,
+        interactionCount,
+        values: { avgVote: null, termometro: 0, roller: 0, fuochi: 0, ghiaccio: 0, equilibrio: 0 },
+      };
     }
     return {
       t: ts,
+      interactionCount,
       values: {
         avgVote: avgNums(ks.map((k) => k.avgVote).filter((v) => v != null)),
         termometro: avgNums(ks.map((k) => k.termometro)) ?? 0,
@@ -2731,6 +2784,7 @@ function buildGlobalAggregate(snapshots){
 
 function drawGlobalChart(){
   if(!globalChart) return;
+  syncCanvasSize(globalChart);
   const ctx = globalChart.getContext("2d");
   const w = globalChart.width, h = globalChart.height;
   ctx.clearRect(0, 0, w, h);
@@ -2753,6 +2807,16 @@ function drawGlobalChart(){
       const filtered = allPoints.filter((p) => p.t >= start);
       if(filtered.length >= 2) points = filtered;
     }
+  }
+  // Trim trailing time buckets without new interactions (e.g. votazioni disabilitate).
+  const lastActiveIdx = (() => {
+    for(let i = points.length - 1; i >= 0; i--){
+      if(Number(points[i]?.interactionCount || 0) > 0) return i;
+    }
+    return -1;
+  })();
+  if(lastActiveIdx >= 1 && lastActiveIdx < points.length - 1){
+    points = points.slice(0, lastActiveIdx + 1);
   }
   if(points.length < 2){
     ctx.fillStyle = "rgba(154,166,214,.75)";
@@ -3455,6 +3519,7 @@ async function bootApp(){
   state = loadState();
   initTogglesFromState();
   setDeepTarget("");
+  redrawChartsForViewport();
   renderAll();
   pushRuntimeDebug("initial render completed");
 
