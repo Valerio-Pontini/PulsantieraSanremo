@@ -59,7 +59,7 @@ function applySerataAccessOptions(){
   }
   if(!firstEnabled){
     if(!/^[1-5]$/.test(String(serataSelect.value || ""))){
-      serataSelect.value = "1";
+      serataSelect.value = "2";
     }
     submitBtn.disabled = false;
     setStatus("Nessuna serata disponibile: accesso utenti bloccato finché l'admin non riapre almeno una serata.");
