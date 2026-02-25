@@ -2,6 +2,7 @@ const SESSION_KEY = "pulsantiera_session";
 const ADMIN_USERNAME = "pulsantiera_admin";
 const ADMIN_CONTROLS_KEY_PREFIX = "pulsantiera_controls_s";
 const SERATA_ACCESS_KEY = "pulsantiera_serata_access";
+const LIVE_SERATA_HINT_KEY = "pulsantiera_live_serata_hint";
 const FIREBASE_CONFIG = window.FIREBASE_CONFIG || null;
 const ADMIN_CONTROLS_COLLECTION = "admin_controls";
 const ADMIN_SERATA_ACCESS_DOC = "serata_access";
@@ -50,6 +51,8 @@ const toggleQuick = document.querySelector("#toggleQuick");
 const toggleDeep = document.querySelector("#toggleDeep");
 const togglePredictions = document.querySelector("#togglePredictions");
 const toggleRecap = document.querySelector("#toggleRecap");
+const toggleLiveSerataHint = document.querySelector("#toggleLiveSerataHint");
+const liveHintSerataSelect = document.querySelector("#liveHintSerataSelect");
 const btnSerateAllOn = document.querySelector("#btnSerateAllOn");
 const btnSerateAllOff = document.querySelector("#btnSerateAllOff");
 const btnSaveControls = document.querySelector("#btnSaveControls");
@@ -99,6 +102,10 @@ function defaultControls(){
     updatedAtMs: 0,
     updatedByUsername: ADMIN_USERNAME,
   };
+}
+
+function defaultLiveSerataHint(){
+  return { enabled: false, serata: "1" };
 }
 
 function normalizeControls(raw){
@@ -161,6 +168,29 @@ function clampSerata(value){
   const n = Number(value);
   if(!Number.isFinite(n)) return "1";
   return String(Math.max(1, Math.min(5, Math.round(n))));
+}
+
+function loadLiveSerataHintLocal(){
+  try{
+    const raw = localStorage.getItem(LIVE_SERATA_HINT_KEY);
+    if(!raw) return defaultLiveSerataHint();
+    const parsed = JSON.parse(raw);
+    return {
+      enabled: !!parsed?.enabled,
+      serata: clampSerata(parsed?.serata || "1"),
+    };
+  } catch {
+    return defaultLiveSerataHint();
+  }
+}
+
+function saveLiveSerataHintLocal(input){
+  const payload = {
+    enabled: !!input?.enabled,
+    serata: clampSerata(input?.serata || "1"),
+  };
+  localStorage.setItem(LIVE_SERATA_HINT_KEY, JSON.stringify(payload));
+  return payload;
 }
 
 function updateSerataPickerUI(){
@@ -250,8 +280,13 @@ async function saveControlsCloud(serata, controls){
   const ref = controlsDocRef(serata);
   if(!ref) return false;
   try{
+    const liveHint = loadLiveSerataHintLocal();
     await ref.set({
       ...normalizeControls(controls),
+      liveHint: {
+        enabled: !!liveHint.enabled,
+        serata: clampSerata(liveHint.serata || "1"),
+      },
       serata: String(serata),
       updatedAtMs: now(),
       updatedByUsername: ADMIN_USERNAME,
@@ -280,13 +315,20 @@ async function loadSerataAccessCloud(){
   }
 }
 
-async function saveSerataAccessCloud(access){
+async function saveSerataAccessCloud(access, liveHintInput = null){
   const ref = serataAccessDocRef();
   if(!ref) return false;
   try{
     const payload = saveSerataAccessLocal(access);
+    const liveHint = liveHintInput
+      ? saveLiveSerataHintLocal(liveHintInput)
+      : loadLiveSerataHintLocal();
     await ref.set({
       access: payload,
+      liveHint: {
+        enabled: !!liveHint.enabled,
+        serata: clampSerata(liveHint.serata || "1"),
+      },
       updatedAtMs: now(),
       updatedByUsername: ADMIN_USERNAME,
       updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
@@ -295,6 +337,23 @@ async function saveSerataAccessCloud(access){
   } catch (err){
     console.warn("saveSerataAccessCloud fail", err);
     return false;
+  }
+}
+
+async function loadLiveSerataHintCloud(){
+  const ref = serataAccessDocRef();
+  if(!ref) return null;
+  try{
+    const snap = await ref.get();
+    if(!snap.exists) return null;
+    const src = snap.data()?.liveHint || {};
+    return {
+      enabled: !!src?.enabled,
+      serata: clampSerata(src?.serata || "1"),
+    };
+  } catch (err){
+    console.warn("loadLiveSerataHintCloud fail", err);
+    return null;
   }
 }
 
@@ -387,6 +446,15 @@ async function renderControls(){
   toggleDeep.checked = c.deepEnabled !== false;
   togglePredictions.checked = c.predictionsEnabled !== false;
   toggleRecap.checked = c.recapEnabled !== false;
+  const liveLocal = loadLiveSerataHintLocal();
+  const liveCloud = await loadLiveSerataHintCloud();
+  const liveFromControls = c?.liveHint && typeof c.liveHint === "object"
+    ? { enabled: !!c.liveHint.enabled, serata: clampSerata(c.liveHint.serata || "1") }
+    : null;
+  const liveHint = liveCloud || liveFromControls || liveLocal;
+  saveLiveSerataHintLocal(liveHint);
+  if(toggleLiveSerataHint) toggleLiveSerataHint.checked = !!liveHint.enabled;
+  if(liveHintSerataSelect) liveHintSerataSelect.value = clampSerata(liveHint.serata);
   panelMeta.textContent = `Utente: ${profile.username} · Modifica Serata ${selectedSerata}`;
 
   await loadArtistsForSerata(selectedSerata);
@@ -520,12 +588,17 @@ btnSaveControls?.addEventListener("click", async () => {
     access[input.dataset.serataAccess] = !!input.checked;
   });
   saveSerataAccessLocal(access);
+  const liveHint = {
+    enabled: !!toggleLiveSerataHint?.checked,
+    serata: clampSerata(liveHintSerataSelect?.value || selectedSerata),
+  };
+  saveLiveSerataHintLocal(liveHint);
 
   let cloudOk = true;
   if(cloud.ready && cloud.uid){
     const [okControls, okAccess] = await Promise.all([
       saveControlsCloud(serataTarget, next),
-      saveSerataAccessCloud(access),
+      saveSerataAccessCloud(access, liveHint),
     ]);
     cloudOk = okControls && okAccess;
   }
