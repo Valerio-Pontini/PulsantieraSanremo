@@ -28,14 +28,22 @@ const QUICK_REACTIONS = [
   { id: "tensione_vera", emoji: "👀", label: "ALTA TENSIONE", tempMin: 40, tempMax: 40 },
   { id: "atmosfera_intensa", emoji: "🎻", label: "ATMOSFERA INTENSA", tempMin: 30, tempMax: 30 },
   { id: "momento_denso", emoji: "🎭", label: "INTELLETTUALE", tempMin: 20, tempMax: 20 },
+  { id: "adrenalina", emoji: "🎢", label: "ADRENALINA PURA", tempMin: 70, tempMax: 90 },
+  { id: "roar", emoji: "🦁", label: "ROAR", tempMin: 50, tempMax: 70 },
+  { id: "lacrimuccia", emoji: "🥹", label: "LACRIMUCCIA", tempMin: 30, tempMax: 50 },
+  { id: "nostalgia", emoji: "😢", label: "NOSTALGICO", tempMin: 20, tempMax: 40 },
   { id: "fase_neutra", emoji: "🤍", label: "NEUTRO", tempMin: 5, tempMax: 5 },
-
+  { id: "follia", emoji: "🎉", label: "FOLLIA", tempMin: -20, tempMax: 20 },
+  { id: "trash", emoji: "🦄", label: "TRASH", tempMin: -10, tempMax: 10 },
   { id: "equilibrio_precario", emoji: "🛸", label: "EQUILIBRIO PRECARIO", tempMin: 0, tempMax: 0 },
-
+  { id: "preistoria", emoji: "🦖", label: "PREISTORIA", tempMin: -5, tempMax: -20 },
   { id: "clima_strano", emoji: "🐍", label: "CLIMA STRANO", tempMin: -15, tempMax: -15 },
   { id: "imbarazzo_latente", emoji: "😬", label: "IMBARAZZO LATENTE", tempMin: -30, tempMax: -30 },
+  { id: "cringe", emoji: "💀", label: "CRINGE", tempMin: -20, tempMax: -40 },
+  { id: "che_paura", emoji: "😱", label: "CHE PAURA", tempMin: -50, tempMax: -70 },
   { id: "falla_tecnica", emoji: "🎧", label: "PROBLEMA TECNICO", tempMin: -45, tempMax: -45 },
   { id: "ritmo_lento", emoji: "🧱", label: "RITMO LENTO", tempMin: -60, tempMax: -60 },
+  { id: "noia", emoji: "🥱", label: "LA NOIA", tempMin: -65, tempMax: -80 },
   { id: "energia_bassa", emoji: "😴", label: "ENERGIA BASSA", tempMin: -75, tempMax: -75 },
   { id: "gelo_totale", emoji: "🧊", label: "GELO TOTALE", tempMin: -90, tempMax: -90 },
   { id: "crollo_live", emoji: "📉", label: "CROLLO LIVE", tempMin: -100, tempMax: -100 }
@@ -221,6 +229,76 @@ function normalizePredictionSnapshot(raw){
     ...normalizePredictionBlock(input),
   };
 }
+
+function parseRecapWindowMinuteFromTime(time){
+  const m = /^(\d{1,2})[:.](\d{2})$/.exec(String(time || "").trim());
+  if(!m) return -1;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if(!Number.isFinite(hh) || !Number.isFinite(mm) || hh < 0 || hh > 23 || mm < 0 || mm > 59) return -1;
+  let total = hh * 60 + mm;
+  if(total < RECAP_CHART_START_MIN) total += 24 * 60;
+  if(total < RECAP_CHART_START_MIN || total > RECAP_CHART_END_MIN) return -1;
+  return total - RECAP_CHART_START_MIN;
+}
+
+function recapWindowMinuteFromTimestamp(ts){
+  const d = new Date(num(ts, 0));
+  let total = (d.getHours() * 60) + d.getMinutes();
+  if(total < RECAP_CHART_START_MIN) total += 24 * 60;
+  if(total < RECAP_CHART_START_MIN || total > RECAP_CHART_END_MIN) return -1;
+  return total - RECAP_CHART_START_MIN;
+}
+
+function recapTimeLabelFromMinute(minuteFromStart){
+  const absolute = RECAP_CHART_START_MIN + Math.max(0, Number(minuteFromStart) || 0);
+  const minutesDay = absolute % (24 * 60);
+  const hh = String(Math.floor(minutesDay / 60)).padStart(2, "0");
+  const mm = String(minutesDay % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function normalizeRecapEvents(raw){
+  return arr(raw)
+    .map((x) => ({
+      id: String(x?.id || uid()),
+      time: String(x?.time || "").trim(),
+      label: String(x?.label || "").trim().slice(0, 80),
+    }))
+    .map((x) => ({ ...x, minute: parseRecapWindowMinuteFromTime(x.time) }))
+    .filter((x) => x.minute >= 0 && x.label)
+    .sort((a, b) => a.minute - b.minute || a.label.localeCompare(b.label, "it"))
+    .map(({ id, time, label, minute }) => ({ id, time, label, minute }));
+}
+
+function recapEventsFileCandidates(serata){
+  return [
+    `./assets/recap_events_serata${serata}.json`,
+    `./recap_events_serata${serata}.json`,
+    "./assets/recap_events.json",
+    "./recap_events.json",
+  ];
+}
+
+async function loadRecapEventsForSerata(serata){
+  recapStaticEvents = [];
+  recapSelectionIndex = -1;
+  recapEventsLoadMeta = { source: "", raw: 0, valid: 0 };
+  for(const path of recapEventsFileCandidates(serata)){
+    try{
+      const res = await fetch(path, { cache: "no-store" });
+      if(!res.ok) continue;
+      const payload = await res.json();
+      const source = Array.isArray(payload) ? payload : (Array.isArray(payload?.events) ? payload.events : []);
+      recapEventsLoadMeta.raw = source.length;
+      recapStaticEvents = normalizeRecapEvents(source);
+      recapEventsLoadMeta.valid = recapStaticEvents.length;
+      recapEventsLoadMeta.source = path;
+      return;
+    } catch {}
+  }
+}
+
 function withTimeout(promise, ms, label){
   let timer = null;
   const timeout = new Promise((_, reject) => {
@@ -393,9 +471,15 @@ const pick = (...selectors) => {
 };
 
 const userInfo = $("#userInfo");
+const serataNavValue = $("#serataNavValue");
+const btnPrevSerata = $("#btnPrevSerata");
+const btnNextSerata = $("#btnNextSerata");
 const themeSelect = $("#themeSelect");
 const btnSwitchUser = pick("#btnSwitchUser", "#btnLogout", "#btnEsci", "#btnExit", "#btnSalta");
 const quickGrid = pick("#quickGrid", ".quick-grid");
+const floatingQuickPad = $("#floatingQuickPad");
+const floatingQuickBubble = $("#floatingQuickBubble");
+const floatingQuickShortcuts = $("#floatingQuickShortcuts");
 
 const xpValue = $("#xpValue");
 const energyFill = $("#energyFill");
@@ -465,6 +549,8 @@ const gKpiEquilibrio = $("#gKpiEquilibrio");
 const globalChartLegend = $("#globalChartLegend");
 const globalChart = $("#globalChart");
 const globalChartInfo = $("#globalChartInfo");
+const btnToggleGlobalArtistRankings = $("#btnToggleGlobalArtistRankings");
+const globalRecentActivities = $("#globalRecentActivities");
 const globalArtistRankings = $("#globalArtistRankings");
 const globalPredictionSummary = $("#globalPredictionSummary");
 const globalPredictionRankings = $("#globalPredictionRankings");
@@ -482,6 +568,15 @@ const quickControlMsg = $("#quickControlMsg");
 const quickDisabledBanner = $("#quickDisabledBanner");
 const deepControlMsg = $("#deepControlMsg");
 const predControlMsg = $("#predControlMsg");
+const recapControlMsg = $("#recapControlMsg");
+const recapFilterSelect = $("#recapFilterSelect");
+const recapIntervalSelect = $("#recapIntervalSelect");
+const recapLegend = $("#recapLegend");
+const recapChart = $("#recapChart");
+const recapInfo = $("#recapInfo");
+const recapGlobalStatus = $("#recapGlobalStatus");
+const recapSelectionMeta = $("#recapSelectionMeta");
+const recapSelectionDetails = $("#recapSelectionDetails");
 const PREDICTION_SELECT_IDS = [
   "predPreShowPodium1","predPreShowPodium2","predPreShowPodium3","predPreShowLast",
   "predPreRankingPodium1","predPreRankingPodium2","predPreRankingPodium3","predPreRankingLast",
@@ -493,7 +588,12 @@ let statsPeriodMin = "all";
 let globalStatsPeriodMin = "all";
 let chartSelectionIndex = -1;
 let chartInteractiveState = { mode: "kpi", points: [], seriesMeta: [] };
+let recapSelectionIndex = -1;
+let recapInteractiveState = { points: [] };
 let singerRankingsExpanded = false;
+let globalArtistRankingsExpanded = false;
+let floatingQuickPadOpen = false;
+let floatingQuickScrollTimer = null;
 const CLOUD_SYNC_DEBOUNCE_MS = 1200;
 const ADMIN_CONTROLS_KEY_PREFIX = "pulsantiera_controls_s";
 const SERATA_ACCESS_KEY = "pulsantiera_serata_access";
@@ -514,14 +614,29 @@ const DEFAULT_FEATURE_CONTROLS = {
   quickEnabled: true,
   deepEnabled: true,
   predictionsEnabled: true,
+  recapEnabled: true,
   deepArtists: {},
   predictionFields: {},
   updatedAtMs: 0,
   updatedByUsername: "",
 };
+const RECAP_CHART_START_MIN = 20 * 60 + 45;
+const RECAP_CHART_END_MIN = (24 * 60) + (2 * 60 + 45);
+const RECAP_CHART_TOTAL_MIN = RECAP_CHART_END_MIN - RECAP_CHART_START_MIN;
+const RECAP_CHART_BUCKET_MIN_DEFAULT = 5;
+const RECAP_INTERVAL_OPTIONS = [2, 5, 10, 15, 30];
+const RECAP_GROUPS = [
+  { id: "hot", label: "Gruppo caldo (positive)", matcher: (type) => (TEMP_DELTA[type] ?? 0) >= 30 },
+  { id: "neutral", label: "Gruppo neutro", matcher: (type) => {
+    const t = TEMP_DELTA[type] ?? 0;
+    return t > -30 && t < 30;
+  }},
+  { id: "cold", label: "Gruppo freddo (negative)", matcher: (type) => (TEMP_DELTA[type] ?? 0) <= -30 },
+];
 let globalAnalytics = {
   loading: false,
   fetchedAt: 0,
+  serata: "",
   users: 0,
   error: "",
   kpi: null,
@@ -529,6 +644,7 @@ let globalAnalytics = {
   artistRankings: null,
   predictionStats: null,
   quickEmojiStats: null,
+  snapshots: [],
   debug: {
     serata: "",
     queryStringDocs: 0,
@@ -555,6 +671,13 @@ const tutorialState = {
   steps: [],
 };
 let chartResizeTimer = null;
+let recapFilterValue = "all";
+let recapIntervalMin = RECAP_CHART_BUCKET_MIN_DEFAULT;
+let recapStaticEvents = [];
+let recapEventsLoadMeta = { source: "", raw: 0, valid: 0 };
+let staticAnalyticsState = null;
+const COLLAPSIBLE_TAB_IDS = ["tab-stats", "tab-global"];
+const COLLAPSIBLE_CARDS_STATE_KEY = "pulsantiera_collapsible_cards_v1";
 
 function pushRuntimeDebug(msg){
   const line = `${fmtTime(now())} · ${msg}`;
@@ -586,8 +709,10 @@ function redrawChartsForViewport(){
   const changedGlobal = syncCanvasSize(globalChart);
   const statsPanel = $("#tab-stats");
   const globalPanel = $("#tab-global");
+  const recapPanel = $("#tab-recap");
   if(changedStats && statsPanel?.classList.contains("active")) drawChart();
   if(changedGlobal && globalPanel?.classList.contains("active")) drawGlobalChart();
+  if(recapPanel?.classList.contains("active")) drawRecapChart();
 }
 
 function scheduleChartResize(){
@@ -620,6 +745,14 @@ window.addEventListener("resize", scheduleChartResize);
 window.addEventListener("orientationchange", () => {
   setTimeout(() => redrawChartsForViewport(), 180);
 });
+window.addEventListener("scroll", () => {
+  if(!floatingQuickPad || floatingQuickPad.hidden) return;
+  floatingQuickPad.classList.add("is-scrolling");
+  clearTimeout(floatingQuickScrollTimer);
+  floatingQuickScrollTimer = setTimeout(() => {
+    floatingQuickPad.classList.remove("is-scrolling");
+  }, 140);
+}, { passive: true });
 
 function controlsStorageKey(serata = cloud.serata){
   return `${ADMIN_CONTROLS_KEY_PREFIX}${String(serata || "0")}`;
@@ -661,6 +794,7 @@ function loadFeatureControls(serata = cloud.serata){
       quickEnabled: parsed?.quickEnabled !== false,
       deepEnabled: parsed?.deepEnabled !== false,
       predictionsEnabled: parsed?.predictionsEnabled !== false,
+      recapEnabled: parsed?.recapEnabled !== false,
       deepArtists: { ...parsedDeepArtists },
       predictionFields: { ...parsedPredictionFields },
       updatedAtMs: num(parsed?.updatedAtMs, 0),
@@ -689,12 +823,14 @@ function applyFeatureControlsUI(){
   const quickOn = featureControls.quickEnabled !== false;
   const deepOn = featureControls.deepEnabled !== false;
   const predOn = featureControls.predictionsEnabled !== false;
+  const recapOn = featureControls.recapEnabled !== false;
   const suffix = featureControls.updatedByUsername ? ` (admin: ${featureControls.updatedByUsername})` : "";
 
   if(quickControlMsg) quickControlMsg.textContent = quickOn ? "" : `Votazioni rapide disabilitate`;
   if(quickDisabledBanner) quickDisabledBanner.hidden = quickOn;
   if(deepControlMsg) deepControlMsg.textContent = deepOn ? "" : `Votazioni cantante disabilitate`;
   if(predControlMsg) predControlMsg.textContent = predOn ? "" : `Predizioni disabilitate`;
+  if(recapControlMsg) recapControlMsg.textContent = recapOn ? "" : `Resoconto disabilitato`;
 
   if(quickGrid){
     quickGrid.classList.toggle("section-disabled", !quickOn);
@@ -747,11 +883,108 @@ function applyFeatureControlsUI(){
       deepControlMsg.textContent = "";
     }
   }
+
+  const recapTabBtn = document.querySelector('.tab[data-tab="recap"]');
+  const recapPanel = $("#tab-recap");
+  if(recapTabBtn){
+    recapTabBtn.hidden = !recapOn;
+    recapTabBtn.disabled = !recapOn;
+    recapTabBtn.setAttribute("aria-hidden", recapOn ? "false" : "true");
+  }
+  if(recapPanel){
+    recapPanel.hidden = !recapOn;
+  }
+  if(!recapOn && recapPanel?.classList.contains("active")){
+    setTab("quick");
+  }
+  updateFloatingQuickPadVisibility();
 }
 
 function refreshFeatureControlsFromStorage(){
   featureControls = loadFeatureControls(cloud.serata);
+  if(featureControls.quickEnabled !== false){
+    staticAnalyticsState = null;
+  }
   applyFeatureControlsUI();
+  if($("#tab-recap")?.classList.contains("active")) renderRecapTab();
+}
+
+function isStaticClosedMode(){
+  return featureControls.quickEnabled === false;
+}
+
+function loadCollapsibleCardsState(){
+  try{
+    const raw = localStorage.getItem(COLLAPSIBLE_CARDS_STATE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveCollapsibleCardsState(next){
+  try{
+    localStorage.setItem(COLLAPSIBLE_CARDS_STATE_KEY, JSON.stringify(next || {}));
+  } catch {}
+}
+
+function setCardCollapsed(card, btn, body, collapsed){
+  const isCollapsed = !!collapsed;
+  card.classList.toggle("is-collapsed", isCollapsed);
+  btn.setAttribute("aria-expanded", isCollapsed ? "false" : "true");
+  btn.textContent = isCollapsed ? "Espandi" : "Comprimi";
+  body.hidden = isCollapsed;
+}
+
+function initCollapsibleCards(){
+  const stateMap = loadCollapsibleCardsState();
+  for(const panelId of COLLAPSIBLE_TAB_IDS){
+    const panel = document.getElementById(panelId);
+    if(!panel) continue;
+    const cards = [...panel.querySelectorAll(":scope > .card")];
+    cards.forEach((card, idx) => {
+      if(card.dataset.collapsibleReady === "1") return;
+      const head = card.querySelector(":scope > .card-head");
+      if(!head) return;
+      const cardId = card.id || `${panelId}-card-${idx + 1}`;
+      const bodyId = `${cardId}-body`;
+      const body = document.createElement("div");
+      body.className = "card-collapsible-body";
+      body.id = bodyId;
+      while(head.nextSibling){
+        body.appendChild(head.nextSibling);
+      }
+      card.appendChild(body);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "switch-btn card-collapse-toggle";
+      btn.setAttribute("aria-controls", bodyId);
+      head.appendChild(btn);
+      card.classList.add("collapsible-card");
+      const collapsed = stateMap?.[cardId] === true;
+      setCardCollapsed(card, btn, body, collapsed);
+      btn.addEventListener("click", () => {
+        const nextCollapsed = !card.classList.contains("is-collapsed");
+        setCardCollapsed(card, btn, body, nextCollapsed);
+        const nextMap = loadCollapsibleCardsState();
+        nextMap[cardId] = nextCollapsed;
+        saveCollapsibleCardsState(nextMap);
+      });
+      card.dataset.collapsibleReady = "1";
+    });
+  }
+}
+
+function getAnalyticsSourceState(){
+  if(!isStaticClosedMode()){
+    staticAnalyticsState = null;
+    return state;
+  }
+  if(!staticAnalyticsState){
+    staticAnalyticsState = normalizeState(state);
+  }
+  return staticAnalyticsState;
 }
 
 function adminControlsDocRef(serata = cloud.serata){
@@ -779,6 +1012,7 @@ async function syncAdminConfigFromCloud(serata = cloud.serata){
         quickEnabled: c?.quickEnabled !== false,
         deepEnabled: c?.deepEnabled !== false,
         predictionsEnabled: c?.predictionsEnabled !== false,
+        recapEnabled: c?.recapEnabled !== false,
         deepArtists: c?.deepArtists && typeof c.deepArtists === "object" ? c.deepArtists : {},
         predictionFields: c?.predictionFields && typeof c.predictionFields === "object" ? c.predictionFields : {},
         updatedAtMs: num(c?.updatedAtMs, 0),
@@ -832,16 +1066,59 @@ function getActionTempDelta(action){
   return TEMP_DELTA[action?.type] ?? 0;
 }
 
+function quickReactionXp(item){
+  return Math.max(6, Math.round((Math.abs((item.tempMin + item.tempMax) / 2) / 10) + 4));
+}
+
+function setFloatingQuickPadOpen(open){
+  const next = !!open;
+  floatingQuickPadOpen = next;
+  if(floatingQuickBubble){
+    floatingQuickBubble.setAttribute("aria-expanded", next ? "true" : "false");
+    floatingQuickBubble.textContent = next ? "✕" : "⚡";
+  }
+  if(floatingQuickShortcuts){
+    floatingQuickShortcuts.hidden = !next;
+  }
+}
+
+function updateFloatingQuickPadVisibility(){
+  if(!floatingQuickPad) return;
+  const quickOn = featureControls.quickEnabled !== false;
+  const quickTabActive = $("#tab-quick")?.classList.contains("active");
+  const visible = quickOn && !quickTabActive;
+  floatingQuickPad.hidden = !visible;
+  if(!visible) setFloatingQuickPadOpen(false);
+}
+
+function renderFloatingQuickPad(){
+  if(!floatingQuickShortcuts) return;
+  floatingQuickShortcuts.innerHTML = QUICK_REACTIONS.map((item) => `
+    <button
+      class="floating-quick-btn"
+      type="button"
+      data-action="react"
+      data-type="${item.id}"
+      data-xp="${quickReactionXp(item)}"
+      title="${escapeHtml(item.label)}"
+      aria-label="${escapeHtml(item.label)}"
+    >${item.emoji}</button>
+  `).join("");
+  setFloatingQuickPadOpen(false);
+  updateFloatingQuickPadVisibility();
+}
+
 function renderQuickButtons(){
   if(!quickGrid) return;
   quickGrid.innerHTML = QUICK_REACTIONS.map((item) => {
-    const xp = Math.max(6, Math.round((Math.abs((item.tempMin + item.tempMax) / 2) / 10) + 4));
+    const xp = quickReactionXp(item);
     return `
       <button class="chip quick-chip" data-action="react" data-type="${item.id}" data-xp="${xp}">
         <span class="left">${item.emoji} ${escapeHtml(item.label)}</span>
       </button>
     `;
   }).join("");
+  renderFloatingQuickPad();
 }
 
 function setArtistLoadStatus(msg){
@@ -1004,9 +1281,44 @@ function updateUserInfo(){
   if(!userInfo) return;
   if(!cloud.username || !cloud.serata){
     userInfo.textContent = "—";
+    if(serataNavValue) serataNavValue.textContent = "—";
+    if(btnPrevSerata) btnPrevSerata.disabled = true;
+    if(btnNextSerata) btnNextSerata.disabled = true;
     return;
   }
   userInfo.textContent = `${cloud.username} · S${cloud.serata}`;
+  if(serataNavValue) serataNavValue.textContent = `S${cloud.serata}`;
+  const s = Number(cloud.serata || 0);
+  if(btnPrevSerata) btnPrevSerata.disabled = !Number.isFinite(s) || s <= 1;
+  if(btnNextSerata) btnNextSerata.disabled = !Number.isFinite(s) || s >= 5;
+}
+
+function switchToSerata(targetSerata){
+  if(!cloud.username || !cloud.serata) return;
+  const target = String(targetSerata || "").trim();
+  if(!/^[1-5]$/.test(target)) return;
+  if(target === String(cloud.serata)) return;
+  if(!isSerataEnabled(target)){
+    toast(`Serata ${target} disabilitata dall'admin`);
+    return;
+  }
+  try{
+    localStorage.setItem("pulsantiera_session", JSON.stringify({
+      username: cloud.username,
+      serata: target,
+      uid: cloud.uid || "",
+      loginAt: now(),
+    }));
+  } catch {}
+  window.location.href = "./index.html";
+}
+
+function moveSerata(offset){
+  const current = Number(cloud.serata || 0);
+  if(!Number.isFinite(current) || current < 1 || current > 5) return;
+  const target = clamp(current + Number(offset || 0), 1, 5);
+  if(target === current) return;
+  switchToSerata(String(target));
 }
 
 async function logoutAndRedirect(){
@@ -1042,10 +1354,30 @@ function wireSessionActions(){
       logoutAndRedirect();
     });
   }
+  if(btnPrevSerata && !btnPrevSerata.dataset.bound){
+    btnPrevSerata.dataset.bound = "1";
+    btnPrevSerata.addEventListener("click", () => moveSerata(-1));
+  }
+  if(btnNextSerata && !btnNextSerata.dataset.bound){
+    btnNextSerata.dataset.bound = "1";
+    btnNextSerata.addEventListener("click", () => moveSerata(1));
+  }
   // Delegated fallback in case the topbar node gets recreated/replaced.
   if(!document.body.dataset.logoutDelegateBound){
     document.body.dataset.logoutDelegateBound = "1";
     document.addEventListener("click", (e) => {
+      const prevBtn = e.target.closest("#btnPrevSerata");
+      if(prevBtn){
+        e.preventDefault();
+        moveSerata(-1);
+        return;
+      }
+      const nextBtn = e.target.closest("#btnNextSerata");
+      if(nextBtn){
+        e.preventDefault();
+        moveSerata(1);
+        return;
+      }
       const t = e.target.closest("#btnSwitchUser, #btnLogout, #btnEsci, #btnExit, #btnSalta");
       if(!t) return;
       e.preventDefault();
@@ -1220,6 +1552,10 @@ $$(".tab").forEach(btn => {
 });
 
 function setTab(tab){
+  const targetPanel = $("#tab-" + tab);
+  if(!targetPanel || targetPanel.hidden){
+    tab = "quick";
+  }
   $$(".tab").forEach(b => {
     const on = b.dataset.tab === tab;
     b.classList.toggle("active", on);
@@ -1227,18 +1563,30 @@ function setTab(tab){
   });
   $$(".panel").forEach(p => p.classList.remove("active"));
   $("#tab-" + tab).classList.add("active");
+  updateFloatingQuickPadVisibility();
   // Refresh analytics view when opened
   if(tab === "stats") renderStats();
   if(tab === "global"){
     renderGlobalStats();
     (async () => {
       if(featureControls.quickEnabled === false) return;
+      if(!cloud.uid) return;
       cloud.pending = true;
       await flushCloudSync();
       await fetchGlobalAnalytics(true);
     })();
   }
   if(tab === "challenge") renderChallenge();
+  if(tab === "recap"){
+    renderRecapTab();
+    (async () => {
+      if(!cloud.uid) return;
+      if(!globalAnalytics.fetchedAt || globalAnalytics.error){
+        await fetchGlobalAnalytics(true);
+      }
+      renderRecapTab();
+    })();
+  }
 }
 
 /* ---------- Toast ---------- */
@@ -1282,6 +1630,11 @@ function tutorialSteps(){
       tab: "global",
       title: "Analitica Globale",
       body: "Confronta i dati medi degli utenti della stessa serata e aggiorna quando serve.",
+    },
+    {
+      tab: "recap",
+      title: "Resoconto",
+      body: "Rivedi 20:45-02:45 con trend personale vs globale e marker eventi della serata.",
     },
   ];
 }
@@ -1547,15 +1900,41 @@ if(btnGlobalRefresh){
       toast("Aggiornamento globale disabilitato: voti rapidi OFF");
       return;
     }
+    if(!cloud.uid){
+      toast("Globali non disponibili: autenticazione cloud assente");
+      return;
+    }
     cloud.pending = true;
     await flushCloudSync();
     await fetchGlobalAnalytics(true);
+    if($("#tab-recap")?.classList.contains("active")) renderRecapTab();
+  });
+}
+if(recapFilterSelect){
+  recapFilterSelect.addEventListener("change", () => {
+    recapFilterValue = recapFilterSelect.value || "all";
+    recapSelectionIndex = -1;
+    drawRecapChart();
+  });
+}
+if(recapIntervalSelect){
+  recapIntervalSelect.addEventListener("change", () => {
+    const next = Number(recapIntervalSelect.value || RECAP_CHART_BUCKET_MIN_DEFAULT);
+    recapIntervalMin = RECAP_INTERVAL_OPTIONS.includes(next) ? next : RECAP_CHART_BUCKET_MIN_DEFAULT;
+    recapSelectionIndex = -1;
+    drawRecapChart();
   });
 }
 if(btnToggleSingerRankings){
   btnToggleSingerRankings.addEventListener("click", () => {
     singerRankingsExpanded = !singerRankingsExpanded;
     renderSingerRankings();
+  });
+}
+if(btnToggleGlobalArtistRankings){
+  btnToggleGlobalArtistRankings.addEventListener("click", () => {
+    globalArtistRankingsExpanded = !globalArtistRankingsExpanded;
+    renderGlobalArtistRankings();
   });
 }
 if(chart){
@@ -1579,7 +1958,27 @@ if(chart){
     drawChart();
   });
 }
-
+if(recapChart){
+  recapChart.addEventListener("click", (e) => {
+    const points = recapInteractiveState.points || [];
+    if(points.length === 0) return;
+    const rect = recapChart.getBoundingClientRect();
+    if(rect.width <= 0) return;
+    // Use CSS pixels for hit-testing; recap chart is rendered in HiDPI with dpr scaling.
+    const x = (e.clientX - rect.left);
+    let best = 0;
+    let bestDist = Infinity;
+    for(let i = 0; i < points.length; i++){
+      const d = Math.abs(points[i].x - x);
+      if(d < bestDist){
+        bestDist = d;
+        best = i;
+      }
+    }
+    recapSelectionIndex = best;
+    drawRecapChart();
+  });
+}
 if(btnNewSession){
   btnNewSession.addEventListener("click", () => {
     // new session resets "energy history" and timeline but keep deep votes and challenge etc.
@@ -1595,6 +1994,20 @@ if(btnNewSession){
 }
 
 /* ---------- Rapid buttons wiring ---------- */
+if(floatingQuickBubble){
+  floatingQuickBubble.addEventListener("click", () => {
+    if(featureControls.quickEnabled === false) return;
+    const quickTabActive = $("#tab-quick")?.classList.contains("active");
+    if(quickTabActive) return;
+    setFloatingQuickPadOpen(!floatingQuickPadOpen);
+  });
+}
+document.addEventListener("click", (e) => {
+  if(!floatingQuickPad || floatingQuickPad.hidden || !floatingQuickPadOpen) return;
+  if(e.target.closest("#floatingQuickPad")) return;
+  setFloatingQuickPadOpen(false);
+});
+
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-action]");
   if(!btn) return;
@@ -1607,6 +2020,7 @@ document.addEventListener("click", (e) => {
   const xp = Number(btn.dataset.xp || "0");
   const note = (quickNoteInput?.value || "").trim();
   addAction(action, type, xp, note);
+  if(btn.closest("#floatingQuickShortcuts")) setFloatingQuickPadOpen(false);
   if(quickNoteInput) quickNoteInput.value = "";
 });
 
@@ -1981,22 +2395,6 @@ function computeKpisForState(sourceState, untilTs = Infinity, fromTs = -Infinity
     roller = jump / (deltas.length - 1);
   }
 
-  const highWeights = {
-    caos_totale: 3,
-    iconic: 2,
-    iconico: 2,
-    vincitore_energy: 2,
-    crescendo_epico: 1,
-    tweet_subito: 1,
-  };
-  const criticalWeights = {
-    cringe_polare: 2,
-    pausa_bagno: 2,
-    artistico_non_capisco: 2, // proxy per 🎧
-    mattone: 1,
-    stonatina_sospetta: 1,
-    passive_aggressive: 1,
-  };
   const centralEmojiSet = new Set([
     "🎭",
     "🎻",
@@ -2013,13 +2411,19 @@ function computeKpisForState(sourceState, untilTs = Infinity, fromTs = -Infinity
   let central = 0;
   const festivalVotes = actions.filter((a) => a.kind === "react" || a.kind === "event");
   for(const a of actions){
-    fuochi += highWeights[a.type] || 0;
-    ghiaccio += criticalWeights[a.type] || 0;
-    if(getActionTempDelta(a) <= -90) ghiaccio += 3; // proxy per 📉
+    const delta = getActionTempDelta(a);
+    if(delta >= 85) fuochi += 3;
+    else if(delta >= 55) fuochi += 2;
+    else if(delta >= 30) fuochi += 1;
+
+    if(delta <= -85) ghiaccio += 3;
+    else if(delta <= -55) ghiaccio += 2;
+    else if(delta <= -30) ghiaccio += 1;
   }
   for(const a of festivalVotes){
     const emoji = EMOJI[a.type] || "";
-    if(centralEmojiSet.has(emoji)) central += 1;
+    const delta = getActionTempDelta(a);
+    if(centralEmojiSet.has(emoji) || (delta > -25 && delta < 50)) central += 1;
   }
   const equilibrio = festivalVotes.length ? (central / festivalVotes.length) * 100 : 0;
 
@@ -2027,7 +2431,7 @@ function computeKpisForState(sourceState, untilTs = Infinity, fromTs = -Infinity
 }
 
 function computeKpisAt(untilTs = Infinity, fromTs = -Infinity){
-  return computeKpisForState(state, untilTs, fromTs);
+  return computeKpisForState(getAnalyticsSourceState(), untilTs, fromTs);
 }
 
 function renderStats(){
@@ -2121,6 +2525,7 @@ function setChartInteraction(mode, seriesMeta, points){
 }
 
 function drawKpiChart(){
+  const sourceState = getAnalyticsSourceState();
   const ctx = chart.getContext("2d");
   const w = chart.width, h = chart.height;
   ctx.clearRect(0,0,w,h);
@@ -2143,10 +2548,10 @@ function drawKpiChart(){
   }
 
   const marks = [
-    ...state.actions
+    ...sourceState.actions
       .filter((a) => a.kind === "react" || a.kind === "event" || a.kind === "deep")
       .map((a) => a.t),
-    ...state.deepVotes.map((v) => v.t),
+    ...sourceState.deepVotes.map((v) => v.t),
   ].sort((a, b) => a - b);
 
   if(marks.length < 2){
@@ -2171,13 +2576,13 @@ function drawKpiChart(){
   const lines = { avgVote: [], termometro: [], roller: [], fuochi: [], ghiaccio: [], equilibrio: [] };
   const pointValues = [];
 
-  const finalKpi = computeKpisAt(end);
+  const finalKpi = computeKpisForState(sourceState, end);
   const fuochiMax = Math.max(1, finalKpi.fuochi);
   const ghiaccioMax = Math.max(1, finalKpi.ghiaccio);
 
   let lastAvgVote = 0.5;
   for(const ts of checkpoints){
-    const k = computeKpisAt(ts, start);
+    const k = computeKpisForState(sourceState, ts, start);
     pointValues.push({ ...k });
     const avgVoteN = k.avgVote == null ? lastAvgVote : clamp(k.avgVote / 10, 0, 1);
     lines.avgVote.push(avgVoteN);
@@ -2251,6 +2656,7 @@ function drawKpiChart(){
 }
 
 function drawArtistsChart(){
+  const sourceState = getAnalyticsSourceState();
   const ctx = chart.getContext("2d");
   const w = chart.width, h = chart.height;
   ctx.clearRect(0,0,w,h);
@@ -2270,7 +2676,7 @@ function drawArtistsChart(){
     `).join("");
   }
 
-  const votesAll = [...state.deepVotes]
+  const votesAll = [...sourceState.deepVotes]
     .filter((v) => v && v.target)
     .sort((a, b) => a.t - b.t);
   const marks = votesAll.map((v) => v.t);
@@ -2375,6 +2781,519 @@ function drawChart(){
   syncCanvasSize(chart);
   if(statsChartMode === "artists") drawArtistsChart();
   else drawKpiChart();
+}
+
+function recapFilterOptions(){
+  const groups = RECAP_GROUPS.map((g) => ({ value: `group:${g.id}`, label: g.label }));
+  const singles = QUICK_REACTIONS.map((r) => ({ value: `type:${r.id}`, label: `${r.emoji} ${r.label}` }));
+  return [
+    { value: "all", label: "Tutte le reazioni" },
+    ...groups,
+    ...singles,
+  ];
+}
+
+function initRecapFilterSelect(){
+  if(!recapFilterSelect) return;
+  const opts = recapFilterOptions();
+  recapFilterSelect.innerHTML = opts
+    .map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`)
+    .join("");
+  const hasCurrent = opts.some((o) => o.value === recapFilterValue);
+  recapFilterSelect.value = hasCurrent ? recapFilterValue : "all";
+  recapFilterValue = recapFilterSelect.value || "all";
+}
+
+function getRecapBucketMin(){
+  const n = Number(recapIntervalMin || RECAP_CHART_BUCKET_MIN_DEFAULT);
+  if(!Number.isFinite(n)) return RECAP_CHART_BUCKET_MIN_DEFAULT;
+  const clamped = clamp(Math.round(n), 1, RECAP_CHART_TOTAL_MIN);
+  return RECAP_INTERVAL_OPTIONS.includes(clamped) ? clamped : RECAP_CHART_BUCKET_MIN_DEFAULT;
+}
+
+function getRecapBucketCount(){
+  return Math.floor(RECAP_CHART_TOTAL_MIN / getRecapBucketMin()) + 1;
+}
+
+function initRecapIntervalSelect(){
+  if(!recapIntervalSelect) return;
+  recapIntervalSelect.innerHTML = RECAP_INTERVAL_OPTIONS
+    .map((n) => `<option value="${n}">${n} min</option>`)
+    .join("");
+  recapIntervalSelect.value = String(getRecapBucketMin());
+}
+
+function isReactionMatchFilter(type, filterValue){
+  const f = String(filterValue || "all");
+  if(f === "all") return true;
+  if(f.startsWith("type:")){
+    return type === f.slice(5);
+  }
+  if(f.startsWith("group:")){
+    const gid = f.slice(6);
+    const group = RECAP_GROUPS.find((g) => g.id === gid);
+    return group ? !!group.matcher(type) : true;
+  }
+  return true;
+}
+
+function buildRecapSeriesForActions(actions, filterValue){
+  const bucketMin = getRecapBucketMin();
+  const bucketCount = getRecapBucketCount();
+  const buckets = Array.from({ length: bucketCount }, () => 0);
+  for(const a of arr(actions)){
+    if(!(a?.kind === "react" || a?.kind === "event")) continue;
+    if(!isReactionMatchFilter(String(a.type || ""), filterValue)) continue;
+    const minute = recapWindowMinuteFromTimestamp(a.t);
+    if(minute < 0) continue;
+    const idx = Math.floor(minute / bucketMin);
+    if(idx >= 0 && idx < buckets.length) buckets[idx] += 1;
+  }
+  return buckets;
+}
+
+function buildRecapTypeCountsByBucket(actions, filterValue){
+  const bucketMin = getRecapBucketMin();
+  const bucketCount = getRecapBucketCount();
+  const counts = Array.from({ length: bucketCount }, () => new Map());
+  for(const a of arr(actions)){
+    if(!(a?.kind === "react" || a?.kind === "event")) continue;
+    const type = String(a?.type || "").trim();
+    if(!type) continue;
+    if(!isReactionMatchFilter(type, filterValue)) continue;
+    const minute = recapWindowMinuteFromTimestamp(a.t);
+    if(minute < 0) continue;
+    const idx = Math.floor(minute / bucketMin);
+    if(idx < 0 || idx >= bucketCount) continue;
+    const map = counts[idx];
+    map.set(type, (map.get(type) || 0) + 1);
+  }
+  return counts;
+}
+
+function recapTopEmojiFromTypeCountMap(map){
+  if(!map || map.size === 0) return "";
+  let topType = "";
+  let topCount = -1;
+  for(const [type, count] of map.entries()){
+    if(count > topCount){
+      topType = type;
+      topCount = count;
+    }
+  }
+  return EMOJI[topType] || "";
+}
+
+function selectTopRecapBuckets(values, maxCount = 6){
+  const minGap = 2;
+  const candidates = values
+    .map((v, idx) => ({ idx, value: Number(v || 0) }))
+    .filter((x) => x.value > 0)
+    .sort((a, b) => b.value - a.value || a.idx - b.idx);
+  const picked = [];
+  for(const c of candidates){
+    if(picked.length >= maxCount) break;
+    const tooClose = picked.some((p) => Math.abs(p.idx - c.idx) < minGap);
+    if(tooClose) continue;
+    picked.push(c);
+  }
+  return picked.map((x) => x.idx).sort((a, b) => a - b);
+}
+
+function recapSeriesMeta(filterValue){
+  let label = "Tutte le reazioni";
+  const fromGroup = RECAP_GROUPS.find((g) => `group:${g.id}` === filterValue);
+  if(fromGroup) label = fromGroup.label;
+  if(String(filterValue || "").startsWith("type:")){
+    const id = String(filterValue).slice(5);
+    const cfg = QUICK_BY_ID[id];
+    if(cfg) label = `${cfg.emoji} ${cfg.label}`;
+  }
+  return { label };
+}
+
+function recapChartWidthForEvents(events, hostWidth){
+  const bucketCount = getRecapBucketCount();
+  const bucketMin = getRecapBucketMin();
+  // Intervalli piccoli => timeline estesa; intervalli grandi => vista compatta.
+  const pxPerBucketByInterval = {
+    2: 30,
+    5: 22,
+    10: 14,
+    15: 11,
+    30: 8,
+  };
+  const pxPerBucket = pxPerBucketByInterval[bucketMin] || 20;
+  const baseMinByInterval = {
+    2: 2300,
+    5: 1700,
+    10: 1200,
+    15: 1000,
+    30: 860,
+  };
+  const baseWidth = Math.max(baseMinByInterval[bucketMin] || 1200, Math.round(bucketCount * pxPerBucket));
+  let ideal = baseWidth;
+  const evs = arr(events)
+    .map((e) => ({ ...e, minute: num(e?.minute, -1) }))
+    .filter((e) => e.minute >= 0)
+    .sort((a, b) => a.minute - b.minute);
+  if(evs.length > 0){
+    // Densita valutata sul bucket corrente (non sul minuto assoluto), per evitare oversizing costante.
+    const counts = Array.from({ length: bucketCount }, () => 0);
+    for(const ev of evs){
+      const idx = clamp(Math.floor(ev.minute / bucketMin), 0, bucketCount - 1);
+      counts[idx] += 1;
+    }
+    const denseBuckets = counts.filter((n) => n > 1).length;
+    const maxPerBucket = Math.max(...counts);
+    const addByInterval = bucketMin <= 5
+      ? ((denseBuckets * 8) + ((maxPerBucket - 1) * 90))
+      : bucketMin <= 10
+        ? ((denseBuckets * 5) + ((maxPerBucket - 1) * 60))
+        : ((denseBuckets * 3) + ((maxPerBucket - 1) * 32));
+    ideal = Math.max(ideal, baseWidth + addByInterval);
+  }
+  return Math.max(hostWidth, clamp(Math.round(ideal), 760, 4200));
+}
+
+function recapBucketRangeLabel(idx){
+  const bucketMin = getRecapBucketMin();
+  const startMin = clamp(idx * bucketMin, 0, RECAP_CHART_TOTAL_MIN);
+  const endMin = clamp(startMin + bucketMin, 0, RECAP_CHART_TOTAL_MIN);
+  return `${recapTimeLabelFromMinute(startMin)} - ${recapTimeLabelFromMinute(endMin)}`;
+}
+
+function actionsInRecapRange(actions, startMin, endMin){
+  const out = [];
+  for(const a of arr(actions)){
+    if(!(a?.kind === "react" || a?.kind === "event")) continue;
+    if(!isReactionMatchFilter(String(a.type || ""), recapFilterValue)) continue;
+    const minute = recapWindowMinuteFromTimestamp(a.t);
+    if(minute < 0) continue;
+    if(minute >= startMin && minute < endMin) out.push(a);
+  }
+  return out;
+}
+
+function summarizeRecapReactions(actions){
+  const map = new Map();
+  for(const a of arr(actions)){
+    const type = String(a?.type || "").trim();
+    if(!type) continue;
+    map.set(type, (map.get(type) || 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([type, count]) => ({
+      type,
+      count,
+      emoji: EMOJI[type] || "✨",
+      label: ACTION_LABEL[type] || type,
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "it"))
+    .slice(0, 8);
+}
+
+function renderRecapSelectionDetails(selectedPoint, events, snapshots){
+  if(!recapSelectionDetails || !recapSelectionMeta){
+    return;
+  }
+  if(!selectedPoint){
+    recapSelectionMeta.textContent = "Tocca un punto del grafico per vedere eventi e riepilogo reazioni.";
+    recapSelectionDetails.innerHTML = `<div class="muted small">Nessun punto selezionato.</div>`;
+    return;
+  }
+  const startMin = selectedPoint.startMin;
+  const endMin = selectedPoint.endMin;
+  const label = selectedPoint.rangeLabel;
+  recapSelectionMeta.textContent = `Fascia ${label}`;
+
+  const eventsInRange = arr(events).filter((ev) => ev.minute >= startMin && ev.minute < endMin);
+  const personalActions = actionsInRecapRange(state.actions, startMin, endMin);
+  const personalSummary = summarizeRecapReactions(personalActions);
+
+  const globalActions = [];
+  for(const snap of arr(snapshots)){
+    globalActions.push(...actionsInRecapRange(snap.actions, startMin, endMin));
+  }
+  const globalSummary = summarizeRecapReactions(globalActions);
+
+  const eventRows = [];
+  const sortedEvents = arr(events).slice().sort((a, b) => num(a?.minute, -1) - num(b?.minute, -1));
+  const previousEvents = sortedEvents
+    .filter((ev) => num(ev?.minute, -1) < startMin)
+    .slice(-2);
+  if(eventsInRange.length){
+    for(const ev of eventsInRange){
+      eventRows.push(`<div class="rank-row"><span>${escapeHtml(ev.time)} · ${escapeHtml(ev.label)}</span></div>`);
+    }
+    if(previousEvents.length){
+      const prev = previousEvents[previousEvents.length - 1];
+      eventRows.push(`<div class="rank-row"><span>${escapeHtml(prev.time)} · ${escapeHtml(prev.label)}</span></div>`);
+    }
+  } else {
+    const prevRows = previousEvents
+      .slice()
+      .reverse()
+      .map((ev, idx) => `<div class="rank-row"><span>${escapeHtml(ev.time)} · ${escapeHtml(ev.label)}</span></div>`);
+    eventRows.push(...prevRows);
+  }
+  const eventsHtml = eventRows.length
+    ? eventRows.join("")
+    : `<div class="muted small">Nessun evento precedente disponibile.</div>`;
+
+  const personalHtml = personalSummary.length
+    ? personalSummary.map((r) => `<div class="rank-row"><span>${r.emoji} ${escapeHtml(r.label)}</span><span class="mono">${r.count}</span></div>`).join("")
+    : `<div class="muted small">Nessuna reazione personale in questa fascia.</div>`;
+
+  const globalHtml = globalSummary.length
+    ? globalSummary.map((r) => `<div class="rank-row"><span>${r.emoji} ${escapeHtml(r.label)}</span><span class="mono">${r.count}</span></div>`).join("")
+    : `<div class="muted small">Nessuna reazione globale in questa fascia.</div>`;
+
+  recapSelectionDetails.innerHTML = `
+    <div class="rank-box">
+      <div class="rank-title">Eventi fascia</div>
+      ${eventsHtml}
+    </div>
+    <div class="rank-box">
+      <div class="rank-title">Reazioni personali (filtro corrente)</div>
+      ${personalHtml}
+    </div>
+    <div class="rank-box">
+      <div class="rank-title">Reazioni globali (filtro corrente)</div>
+      ${globalHtml}
+    </div>
+  `;
+}
+
+function drawRecapChart(){
+  if(!recapChart) return;
+  const ctx = recapChart.getContext("2d");
+  const hostW = recapChart.parentElement?.clientWidth || 980;
+  const events = recapStaticEvents;
+  const bucketMin = getRecapBucketMin();
+  const bucketCount = getRecapBucketCount();
+  const nextW = recapChartWidthForEvents(events, hostW);
+  const cssW = nextW;
+  const cssH = 220;
+  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  const pixelW = Math.round(cssW * dpr);
+  const pixelH = Math.round(cssH * dpr);
+  if(recapChart.width !== pixelW) recapChart.width = pixelW;
+  if(recapChart.height !== pixelH) recapChart.height = pixelH;
+  // Keep CSS size aligned with backing store size to avoid blurry text/lines.
+  recapChart.style.width = `${cssW}px`;
+  recapChart.style.height = `${cssH}px`;
+  const w = cssW;
+  const h = cssH;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+
+  const personal = buildRecapSeriesForActions(state.actions, recapFilterValue);
+  const personalTypeCountsByBucket = buildRecapTypeCountsByBucket(state.actions, recapFilterValue);
+  const snapshots = arr(globalAnalytics.snapshots);
+  const globalRaw = Array.from({ length: bucketCount }, () => 0);
+  const globalTypeCountsByBucket = Array.from({ length: bucketCount }, () => new Map());
+  for(const snap of snapshots){
+    const row = buildRecapSeriesForActions(snap.actions, recapFilterValue);
+    const typeCounts = buildRecapTypeCountsByBucket(snap.actions, recapFilterValue);
+    for(let i = 0; i < globalRaw.length; i++) globalRaw[i] += row[i];
+    for(let i = 0; i < typeCounts.length; i++){
+      for(const [type, count] of typeCounts[i].entries()){
+        const m = globalTypeCountsByBucket[i];
+        m.set(type, (m.get(type) || 0) + count);
+      }
+    }
+  }
+  const yMax = Math.max(1, ...personal, ...globalRaw);
+  const padX = 26;
+  const padY = 16;
+  const innerW = w - (padX * 2);
+  const innerH = h - (padY * 2);
+  const xFrom = (i) => padX + (i / Math.max(1, bucketCount - 1)) * innerW;
+  const yFrom = (v) => padY + (1 - (v / yMax)) * innerH;
+  const eventCountByBucket = Array.from({ length: bucketCount }, () => 0);
+  for(const ev of events){
+    const idx = clamp(Math.floor(ev.minute / bucketMin), 0, bucketCount - 1);
+    eventCountByBucket[idx] += 1;
+  }
+  const chartPoints = Array.from({ length: bucketCount }, (_, idx) => ({
+    x: xFrom(idx),
+    idx,
+    rangeLabel: recapBucketRangeLabel(idx),
+    startMin: clamp(idx * bucketMin, 0, RECAP_CHART_TOTAL_MIN),
+    endMin: clamp((idx + 1) * bucketMin, 0, RECAP_CHART_TOTAL_MIN),
+    personal: personal[idx] || 0,
+    globalTotal: Number(globalRaw[idx] || 0),
+    eventsInBucket: eventCountByBucket[idx] || 0,
+  }));
+  recapInteractiveState = { points: chartPoints };
+
+  ctx.strokeStyle = "rgba(31,42,77,.55)";
+  ctx.lineWidth = 1;
+  for(let i = 0; i <= 4; i++){
+    const y = padY + (innerH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(padX, y); ctx.lineTo(w - padX, y); ctx.stroke();
+  }
+
+  const hourMarks = [0, 60, 120, 180, 240, 300, 360];
+  ctx.fillStyle = "rgba(154,166,214,.85)";
+  ctx.font = "12px ui-monospace";
+  for(const m of hourMarks){
+    const idx = Math.floor(m / bucketMin);
+    const x = xFrom(Math.min(bucketCount - 1, idx));
+    ctx.strokeStyle = "rgba(31,42,77,.35)";
+    ctx.beginPath();
+    ctx.moveTo(x, padY);
+    ctx.lineTo(x, h - padY);
+    ctx.stroke();
+    const label = recapTimeLabelFromMinute(m);
+    ctx.fillText(label, x - 16, h - 2);
+  }
+
+  const series = [
+    { key: "personal", color: "rgba(255,211,107,.95)", values: personal, label: "Personale" },
+    { key: "global", color: "rgba(88,166,255,.95)", values: globalRaw, label: "Globale (totale)" },
+  ];
+  for(const s of series){
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    for(let i = 0; i < s.values.length; i++){
+      const x = xFrom(i);
+      const y = yFrom(s.values[i]);
+      if(i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  const personalEmojiByBucket = personalTypeCountsByBucket.map((m) => recapTopEmojiFromTypeCountMap(m));
+  const globalEmojiByBucket = globalTypeCountsByBucket.map((m) => recapTopEmojiFromTypeCountMap(m));
+  const personalPeakIdx = selectTopRecapBuckets(personal, 6);
+  const globalPeakIdx = selectTopRecapBuckets(globalRaw, 6);
+
+  // Emoji markers only on high-activity fasce, to keep chart readable.
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "14px ui-sans-serif";
+
+  for(const idx of personalPeakIdx){
+    const emoji = personalEmojiByBucket[idx];
+    if(!emoji) continue;
+    const x = xFrom(idx);
+    const y = yFrom(personal[idx] || 0) - 14;
+    ctx.fillStyle = "rgba(7,10,19,.5)";
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,235,170,.98)";
+    ctx.fillText(emoji, x, y);
+  }
+
+  for(const idx of globalPeakIdx){
+    const emoji = globalEmojiByBucket[idx];
+    if(!emoji) continue;
+    const x = xFrom(idx);
+    const y = yFrom(globalRaw[idx] || 0) + 14;
+    ctx.fillStyle = "rgba(7,10,19,.5)";
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(179,222,255,.98)";
+    ctx.fillText(emoji, x, y);
+  }
+
+  if(chartPoints.length > 0 && recapSelectionIndex >= 0 && recapSelectionIndex < chartPoints.length){
+    const sel = chartPoints[recapSelectionIndex];
+    ctx.strokeStyle = "rgba(231,233,255,.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sel.x, padY);
+    ctx.lineTo(sel.x, h - padY);
+    ctx.stroke();
+
+    const py = yFrom(personal[recapSelectionIndex] || 0);
+    const gy = yFrom(globalRaw[recapSelectionIndex] || 0);
+    ctx.fillStyle = "rgba(255,211,107,.98)";
+    ctx.beginPath(); ctx.arc(sel.x, py, 4.8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(88,166,255,.98)";
+    ctx.beginPath(); ctx.arc(sel.x, gy, 4.8, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,.55)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(sel.x, py, 4.8, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(sel.x, gy, 4.8, 0, Math.PI * 2); ctx.stroke();
+
+  }
+
+  ctx.setLineDash([4, 4]);
+  for(let i = 0; i < events.length; i++){
+    const ev = events[i];
+    const idx = clamp(Math.floor(ev.minute / bucketMin), 0, bucketCount - 1);
+    const x = xFrom(idx);
+    ctx.strokeStyle = "rgba(163,107,255,.75)";
+    ctx.beginPath();
+    ctx.moveTo(x, padY);
+    ctx.lineTo(x, h - padY);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(163,107,255,.96)";
+    ctx.fillRect(x - 2, padY, 4, 9);
+    ctx.beginPath();
+    ctx.moveTo(x, h - padY + 1);
+    ctx.lineTo(x - 4, h - padY + 8);
+    ctx.lineTo(x + 4, h - padY + 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.setLineDash([]);
+
+  const filterMeta = recapSeriesMeta(recapFilterValue);
+  if(recapLegend){
+    recapLegend.innerHTML = `
+      <span class="chart-pill"><span class="chart-swatch" style="background:rgba(255,211,107,.95)"></span>Personale</span>
+      <span class="chart-pill"><span class="chart-swatch" style="background:rgba(88,166,255,.95)"></span>Globale</span>
+      <span class="chart-pill"><span class="chart-swatch" style="background:rgba(163,107,255,.9)"></span>Eventi</span>
+      <span class="chart-pill">Filtro: ${escapeHtml(filterMeta.label)}</span>
+    `;
+  }
+  if(recapInfo){
+    const personalTot = personal.reduce((acc, v) => acc + v, 0);
+    const globalTot = globalRaw.reduce((acc, v) => acc + v, 0);
+    if(recapSelectionIndex >= 0 && recapSelectionIndex < chartPoints.length){
+      const sel = chartPoints[recapSelectionIndex];
+      recapInfo.innerHTML = `
+        <div class="chart-point-head">Dettaglio orario ${sel.rangeLabel}</div>
+        <div class="chart-point-rows">
+          <span class="chart-point-row">Personale: <b class="mono">${sel.personal}</b> reazioni</span>
+          <span class="chart-point-row">Globale (totale): <b class="mono">${sel.globalTotal}</b> reazioni</span>
+        </div>
+      `;
+    } else {
+      recapInfo.innerHTML = `
+        <div class="chart-point-head">Fascia 20:45 - 02:45 · intervallo ${bucketMin} min</div>
+        <div class="chart-point-rows">
+          <span class="chart-point-row">Personale: <b class="mono">${personalTot}</b> reazioni</span>
+          <span class="chart-point-row">Globale: <b class="mono">${globalTot}</b> reazioni (${snapshots.length} utenti)</span>
+          <span class="chart-point-row">Eventi: <b class="mono">${events.length}</b></span>
+          <span class="chart-point-row">Clicca un punto del grafico per vedere il dettaglio di quel momento.</span>
+        </div>
+      `;
+    }
+  }
+  const selectedPoint = (recapSelectionIndex >= 0 && recapSelectionIndex < chartPoints.length)
+    ? chartPoints[recapSelectionIndex]
+    : null;
+  renderRecapSelectionDetails(selectedPoint, events, snapshots);
+}
+
+function renderRecapTab(){
+  if(recapGlobalStatus){
+    if(globalAnalytics.loading) recapGlobalStatus.textContent = "Aggiornamento globale…";
+    else if(globalAnalytics.error) recapGlobalStatus.textContent = `${globalAnalytics.error}`;
+    else if(globalAnalytics.fetchedAt) recapGlobalStatus.textContent = `Utenti globali: ${arr(globalAnalytics.snapshots).length} · ${fmtTime(globalAnalytics.fetchedAt)}`;
+    else if(!cloud.uid) recapGlobalStatus.textContent = "Globali non disponibili: autenticazione cloud non riuscita.";
+    else recapGlobalStatus.textContent = "In attesa dati globali…";
+  }
+  drawRecapChart();
 }
 
 function globalSeriesMeta(){
@@ -2586,11 +3505,11 @@ function buildGlobalArtistRankings(snapshots){
   return {
     totalVotes,
     totalArtists: byArtist.size,
-    topOverall: topEntriesFromMap(byArtist, 5, (name, data) => toAvg(name, data, "sumOverall")),
-    topPerformance: topEntriesFromMap(byArtist, 5, (name, data) => toAvg(name, data, "sumPerformance")),
-    topOutfit: topEntriesFromMap(byArtist, 5, (name, data) => toAvg(name, data, "sumOutfit")),
-    topSong: topEntriesFromMap(byArtist, 5, (name, data) => toAvg(name, data, "sumSong")),
-    topRelisten: topEntriesFromMap(byArtist, 5, (name, data) => toAvg(name, data, "sumRelisten")),
+    topOverall: topEntriesFromMap(byArtist, byArtist.size, (name, data) => toAvg(name, data, "sumOverall")),
+    topPerformance: topEntriesFromMap(byArtist, byArtist.size, (name, data) => toAvg(name, data, "sumPerformance")),
+    topOutfit: topEntriesFromMap(byArtist, byArtist.size, (name, data) => toAvg(name, data, "sumOutfit")),
+    topSong: topEntriesFromMap(byArtist, byArtist.size, (name, data) => toAvg(name, data, "sumSong")),
+    topRelisten: topEntriesFromMap(byArtist, byArtist.size, (name, data) => toAvg(name, data, "sumRelisten")),
     tagDebug,
   };
 }
@@ -2881,13 +3800,26 @@ function drawGlobalChart(){
 
 async function fetchGlobalAnalytics(force = false){
   if(!cloud.ready || !cloud.db || !cloud.serata) return;
+  const currentSerata = String(cloud.serata || "");
+  if(!cloud.uid){
+    globalAnalytics.loading = false;
+    globalAnalytics.error = "Auth cloud non disponibile (utente non autenticato).";
+    globalAnalytics.serata = currentSerata;
+    globalAnalytics.fetchedAt = now();
+    renderGlobalStats();
+    return;
+  }
+  const sameSerataCache = globalAnalytics.serata === currentSerata;
+  if(isStaticClosedMode() && globalAnalytics.fetchedAt && sameSerataCache){
+    return;
+  }
   if(globalAnalytics.loading) return;
-  if(!force && globalAnalytics.fetchedAt) return;
+  if(!force && globalAnalytics.fetchedAt && sameSerataCache) return;
 
   globalAnalytics.loading = true;
   globalAnalytics.error = "";
   globalAnalytics.debug = {
-    serata: String(cloud.serata || ""),
+    serata: currentSerata,
     queryStringDocs: 0,
     queryNumberDocs: 0,
     dedupDocs: 0,
@@ -2956,12 +3888,16 @@ async function fetchGlobalAnalytics(force = false){
     globalAnalytics.artistRankings = agg.artistRankings;
     globalAnalytics.predictionStats = agg.predictionStats;
     globalAnalytics.quickEmojiStats = agg.quickEmojiStats;
+    globalAnalytics.snapshots = snapshots;
+    globalAnalytics.serata = currentSerata;
     globalAnalytics.fetchedAt = now();
   } catch (err){
     console.warn("Caricamento analitica globale fallito:", err);
     const code = String(err?.code || "");
     const msg = String(err?.message || "");
     globalAnalytics.error = code ? `Errore lettura dati globali (${code})` : "Errore lettura dati globali";
+    globalAnalytics.snapshots = [];
+    globalAnalytics.serata = currentSerata;
     globalAnalytics.debug.errorCode = code;
     globalAnalytics.debug.errorMessage = msg;
     globalAnalytics.fetchedAt = now();
@@ -2973,7 +3909,7 @@ async function fetchGlobalAnalytics(force = false){
 
 function renderQuickEmojiRankingsLocal(){
   if(!quickEmojiRankings) return;
-  const stats = buildQuickEmojiStatsForState(state);
+  const stats = buildQuickEmojiStatsForState(getAnalyticsSourceState());
   if(!stats.total || arr(stats.top).length === 0){
     quickEmojiRankings.innerHTML = `<div class="muted small">Nessuna reazione rapida registrata finora.</div>`;
     return;
@@ -2995,7 +3931,7 @@ function renderQuickEmojiRankingsLocal(){
 
 function renderStatsDiary(){
   if(!statsDiaryList) return;
-  const actions = state.actions
+  const actions = getAnalyticsSourceState().actions
     .filter((a) => a.kind === "react" || a.kind === "event")
     .slice()
     .sort((a, b) => b.t - a.t);
@@ -3056,13 +3992,54 @@ function renderGlobalQuickEmojiRankings(){
   `;
 }
 
+function renderGlobalRecentActivities(){
+  if(!globalRecentActivities) return;
+  const recent = arr(globalAnalytics.snapshots)
+    .flatMap((snap) => arr(snap?.actions))
+    .filter((a) => (a?.kind === "react" || a?.kind === "event") && Number(a?.t) > 0 && String(a?.type || "").trim())
+    .sort((a, b) => Number(b.t || 0) - Number(a.t || 0))
+    .slice(0, 5);
+  if(recent.length === 0){
+    globalRecentActivities.innerHTML = `<div class="muted small">Nessuna reazione globale recente disponibile.</div>`;
+    return;
+  }
+  const rows = recent.map((a, idx) => {
+    const emoji = EMOJI[a.type] || "✨";
+    const label = ACTION_LABEL[a.type] || a.type;
+    const note = String(a.note || "").trim();
+    return `
+      <div class="rank-row">
+        <span>
+          ${idx + 1}. ${emoji} ${escapeHtml(label)}
+          ${note ? `<div class="muted small">“${escapeHtml(note)}”</div>` : ""}
+        </span>
+        <span class="mono">${fmtTime(a.t)}</span>
+      </div>
+    `;
+  }).join("");
+  globalRecentActivities.innerHTML = `
+    <div class="rank-box">
+      <div class="rank-title">Ultime 5 Reazioni Registrate</div>
+      <div class="muted small">Feed globale</div>
+      ${rows}
+    </div>
+  `;
+}
+
 function renderGlobalArtistRankings(){
   if(!globalArtistRankings) return;
+  if(btnToggleGlobalArtistRankings){
+    btnToggleGlobalArtistRankings.classList.toggle("active", globalArtistRankingsExpanded);
+    btnToggleGlobalArtistRankings.textContent = globalArtistRankingsExpanded ? "Mostra top 5" : "Mostra tutte";
+  }
   const data = globalAnalytics.artistRankings;
   if(!data || data.totalArtists === 0){
+    if(btnToggleGlobalArtistRankings) btnToggleGlobalArtistRankings.disabled = true;
     globalArtistRankings.innerHTML = `<div class="muted small">Nessuna classifica artista disponibile: servono voti profondi salvati nel cloud.</div>`;
     return;
   }
+  if(btnToggleGlobalArtistRankings) btnToggleGlobalArtistRankings.disabled = false;
+  const limit = globalArtistRankingsExpanded ? data.totalArtists : 5;
 
   const blocks = [
     { title: "🏆 Top Generale", key: "topOverall", fmt: (r) => r.value.toFixed(2) },
@@ -3073,16 +4050,19 @@ function renderGlobalArtistRankings(){
   ];
 
   globalArtistRankings.innerHTML = blocks.map((b) => {
-    const rows = arr(data[b.key]).map((row, idx) => `
+    const fullList = arr(data[b.key]);
+    const list = fullList.slice(0, limit);
+    const rows = list.map((row, idx) => `
       <div class="rank-row">
         <span>${idx + 1}. ${escapeHtml(row.name)} <span class="muted small">${arr(row.topTagEmojis).filter((e) => typeof e === "string" && e.trim()).join(" ")}</span></span>
         <span class="mono">${b.fmt(row)} </span>
       </div>
     `).join("");
+    const info = globalArtistRankingsExpanded ? `Classifica completa (${fullList.length})` : `Top ${list.length}`;
     return `
       <div class="rank-box">
         <div class="rank-title">${b.title}</div>
-        <div class="muted small">${data.totalArtists} artisti </div>
+        <div class="muted small">${info}</div>
         ${rows || '<div class="muted small">Dati insufficienti</div>'}
       </div>
     `;
@@ -3262,13 +4242,18 @@ function renderGlobalStats(){
     if(gKpiFuochi) gKpiFuochi.textContent = "—";
     if(gKpiGhiaccio) gKpiGhiaccio.textContent = "—";
     if(gKpiEquilibrio) gKpiEquilibrio.textContent = "—";
+    renderGlobalRecentActivities();
     renderGlobalArtistRankings();
     renderGlobalPredictionStats();
     renderGlobalQuickEmojiRankings();
     if(globalChartInfo) globalChartInfo.textContent = "Aggiorna con il pulsante per ricaricare i dati globali.";
     drawGlobalChart();
     // Anche a votazioni chiuse: carica una sola volta i dati per consultazione statica.
-    if(cloud.ready && (globalUpdatesEnabled || !globalAnalytics.fetchedAt)) fetchGlobalAnalytics(false);
+    if(cloud.ready && cloud.uid && (
+      globalUpdatesEnabled ||
+      !globalAnalytics.fetchedAt ||
+      globalAnalytics.serata !== String(cloud.serata || "")
+    )) fetchGlobalAnalytics(false);
     if(btnGlobalRefresh) btnGlobalRefresh.disabled = !globalUpdatesEnabled;
     return;
   }
@@ -3279,6 +4264,7 @@ function renderGlobalStats(){
   if(gKpiFuochi) gKpiFuochi.textContent = String(Math.round(k.fuochi));
   if(gKpiGhiaccio) gKpiGhiaccio.textContent = String(Math.round(k.ghiaccio));
   if(gKpiEquilibrio) gKpiEquilibrio.textContent = `${k.equilibrio.toFixed(1)}%`;
+  renderGlobalRecentActivities();
   renderGlobalArtistRankings();
   renderGlobalPredictionStats();
   renderGlobalQuickEmojiRankings();
@@ -3299,7 +4285,7 @@ function renderSingerRankings(){
     btnToggleSingerRankings.classList.toggle("active", singerRankingsExpanded);
     btnToggleSingerRankings.textContent = singerRankingsExpanded ? "Mostra top 5" : "Mostra tutte";
   }
-  const votes = state.deepVotes
+  const votes = getAnalyticsSourceState().deepVotes
     .filter((v) => v && v.target)
     .map((v) => {
       const m = v.metrics || { performance: 7, outfit: 7, song: v.song || 7, relisten: 7 };
@@ -3418,6 +4404,7 @@ function renderAll(){
   if($("#tab-stats").classList.contains("active")) renderStats();
   if($("#tab-global").classList.contains("active")) renderGlobalStats();
   if($("#tab-challenge").classList.contains("active")) renderChallenge();
+  if($("#tab-recap").classList.contains("active")) renderRecapTab();
 }
 
 /* ---------- Helpers ---------- */
@@ -3494,6 +4481,7 @@ function tick(){
 /* ---------- Boot ---------- */
 async function bootApp(){
   initThemePicker();
+  initCollapsibleCards();
   pushRuntimeDebug("bootApp start");
   const profile = getSessionProfile();
   if(!profile){
@@ -3518,11 +4506,14 @@ async function bootApp(){
   cloud.uid = profile.uid || "";
   refreshFeatureControlsFromStorage();
   renderQuickButtons();
+  initRecapFilterSelect();
+  initRecapIntervalSelect();
   applyFeatureControlsUI();
   pushRuntimeDebug("quick buttons rendered");
   updateUserInfo();
   wireSessionActions();
   await loadArtistsForSerata(cloud.serata);
+  await loadRecapEventsForSerata(cloud.serata);
   pushRuntimeDebug("artists load completed");
 
   state = loadState();
