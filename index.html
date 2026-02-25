@@ -539,7 +539,10 @@
             <div class="h3">Grafico Reazioni Rapide</div>
             <div class="muted">Linea personale e media globale utenti sulla stessa fascia oraria.</div>
           </div>
-          <div id="recapGlobalStatus" class="muted small">In attesa dati globali…</div>
+          <div class="right-actions">
+            <button class="switch-btn" id="btnToggleRecapEventLines" type="button">Nascondi eventi</button>
+            <div id="recapGlobalStatus" class="muted small">In attesa dati globali…</div>
+          </div>
         </div>
         <div id="recapLegend" class="chart-legend"></div>
         <div id="recapChartScroll" class="recap-chart-scroll">
@@ -551,7 +554,7 @@
       <div class="card">
         <div class="card-head">
           <div>
-            <div class="h3">Dettaglio Fascia Selezionata</div>
+            <div class="h3">Dettaglio Fascia Oraria Selezionata</div>
             <div id="recapSelectionMeta" class="muted small">Tocca un punto del grafico per vedere eventi e riepilogo reazioni.</div>
           </div>
         </div>
