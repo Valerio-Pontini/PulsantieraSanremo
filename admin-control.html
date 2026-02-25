@@ -90,6 +90,23 @@
             </div>
             <input id="toggleRecap" type="checkbox" />
           </label>
+          <label class="item">
+            <div class="meta">
+              <div class="title">Avviso serata live</div>
+              <div class="sub">Mostra un suggerimento discreto in app: "Votazioni Serata X attive"</div>
+              <div class="sub" style="margin-top:6px; display:flex; align-items:center; gap:8px;">
+                <span class="muted small">Serata live</span>
+                <select id="liveHintSerataSelect" class="input fancy-select" style="max-width:170px;">
+                  <option value="1">Serata 1</option>
+                  <option value="2">Serata 2</option>
+                  <option value="3">Serata 3</option>
+                  <option value="4">Serata 4</option>
+                  <option value="5">Serata 5 (Finale)</option>
+                </select>
+              </div>
+            </div>
+            <input id="toggleLiveSerataHint" type="checkbox" />
+          </label>
         </div>
         <div class="actions">
           <button id="btnSaveControls" class="primary" type="button">Salva impostazioni</button>
