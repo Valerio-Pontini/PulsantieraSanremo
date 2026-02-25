@@ -49,6 +49,12 @@
         <span id="serataNavValue" class="mono">—</span>
       </div>
       <button class="ghost serata-nav-btn" id="btnNextSerata" title="Serata successiva" aria-label="Serata successiva">→</button>
+      <div id="liveSerataHint" class="live-serata-hint" hidden aria-live="polite">
+        <span id="liveSerataHintArrow" class="live-serata-hint-arrow" aria-hidden="true">→</span>
+        <span id="liveSerataHintText" class="live-serata-hint-text">Votazioni Serata 1 attive</span>
+        <button id="btnGoLiveSerata" class="ghost live-serata-hint-btn" type="button">Vai</button>
+        <button id="btnHideLiveSerataHint" class="ghost live-serata-hint-btn live-serata-hide-btn" type="button" title="Nascondi avviso">✕</button>
+      </div>
       <button class="ghost" id="btnSwitchUser" title="Cambia utente">Esci</button>
     </div>
   </header>
@@ -190,6 +196,14 @@
               <button class="toggle" data-toggle="winner">👑 Può vincere</button>
               <button class="toggle" data-toggle="relisten">🔁 Riascolterei</button>
               <button class="toggle" data-toggle="radiohit">📻 Radio hit</button>
+              <button class="toggle" data-toggle="iconico">💎 Iconico</button>
+              <button class="toggle" data-toggle="ballabile">🪩 Ballabile</button>
+              <button class="toggle" data-toggle="voce">🎼 La Voce</button>
+              <button class="toggle" data-toggle="emozione">💓 Emozione</button>
+              <button class="toggle" data-toggle="soporifero">💤 Soporifero</button>
+              <button class="toggle" data-toggle="meh">🤷🏻 Meh</button>
+              <button class="toggle" data-toggle="stonato">🙉 Stonato</button>
+              <button class="toggle" data-toggle="saltabile">⏭️</button>
             </div>
           </div>
         </div>
