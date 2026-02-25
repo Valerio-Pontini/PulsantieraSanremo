@@ -1244,3 +1244,92 @@ body.tutorial-open{
   .session .user-pill{ max-width: 130px; }
   .theme-select{ min-width: 96px; max-width: 112px; }
 }
+/* --- PATCH OVERRIDE: fix pulsante "hit" / hint live su mobile --- */
+@media (max-width: 760px){
+
+  /* Header in 2 righe: brand sopra, controlli sotto */
+  .topbar{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 10px 10px;
+  }
+
+  /* Riga controlli: UNA SOLA RIGA + scroll orizzontale */
+  .session{
+    width: 100%;
+    flex-wrap: nowrap !important;     /* evita che vada su più righe */
+    overflow-x: auto !important;      /* scroll invece di wrap */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+    padding-bottom: 2px;
+    min-width: 0;
+  }
+
+  /* Ogni chip resta compatto */
+  .session .pill,
+  .session .ghost{
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+  }
+
+  /* Hint live: non deve mai diventare multi-riga */
+  .live-serata-hint{
+    max-width: 100%;
+    min-width: 0;
+  }
+  .live-serata-hint-text{
+    display: block;
+    min-width: 0;
+    max-width: 180px;                /* regola qui se vuoi più/meno */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap !important;  /* stop righe */
+  }
+
+  /* Bottone "hit" più compatto e stabile */
+  .live-serata-hint-btn{
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 6px 10px;
+    font-size: 12px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  /* Frecce più coerenti e tappabili */
+  .serata-nav-btn{
+    min-width: 44px;
+    min-height: 38px;
+    padding: 8px 10px;
+  }
+
+  /* Pill tema un filo più piccola */
+  .theme-select{
+    min-width: 104px;
+    max-width: 124px;
+  }
+
+  /* User pill: ellissi e limite larghezza */
+  .session .user-pill{
+    max-width: 160px;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .session .user-pill #userInfo{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Micro-schermi */
+@media (max-width: 420px){
+  .live-serata-hint-text{ max-width: 140px; }
+  .session .user-pill{ max-width: 130px; }
+  .theme-select{ min-width: 96px; max-width: 112px; }
+}
