@@ -76,6 +76,15 @@ const FLAG_EMOJI = {
   winner: "👑",
   relisten: "🔁",
   radiohit: "📻",
+  iconico: "💎",
+  performer: "🎬",
+  ballabile: "🪩",
+  voce: "🎼",
+  emozione:  "💓",
+  soporifero: "💤",
+  meh: "🤷🏻",
+  stonato: "🙉",
+  saltabile: "⏭️"
 };
 
 const FLAG_ALIASES = {
@@ -84,6 +93,15 @@ const FLAG_ALIASES = {
   winner: ["winner", "canWin", "vincitore", "puoVincere", "can_winner"],
   relisten: ["relisten", "riascolto"],
   radiohit: ["radiohit", "radioHit", "radio", "hitRadio"],
+  iconico: ["iconico"],
+  performer: ["performer"],
+  ballabile: ["ballabile"],
+  voce: ["voce"],
+  emozione: ["emozione"],
+  soporifero: ["soporifero"],
+  meh: ["meh"],
+  stonato: ["stonato"],
+  saltabile: ["saltabile"]
 };
 
 Object.entries(LEGACY_TYPES).forEach(([id, cfg]) => {
@@ -474,6 +492,11 @@ const userInfo = $("#userInfo");
 const serataNavValue = $("#serataNavValue");
 const btnPrevSerata = $("#btnPrevSerata");
 const btnNextSerata = $("#btnNextSerata");
+const liveSerataHint = $("#liveSerataHint");
+const liveSerataHintArrow = $("#liveSerataHintArrow");
+const liveSerataHintText = $("#liveSerataHintText");
+const btnGoLiveSerata = $("#btnGoLiveSerata");
+const btnHideLiveSerataHint = $("#btnHideLiveSerataHint");
 const themeSelect = $("#themeSelect");
 const btnSwitchUser = pick("#btnSwitchUser", "#btnLogout", "#btnEsci", "#btnExit", "#btnSalta");
 const quickGrid = pick("#quickGrid", ".quick-grid");
@@ -602,6 +625,7 @@ let floatingQuickScrollTimer = null;
 const CLOUD_SYNC_DEBOUNCE_MS = 1200;
 const ADMIN_CONTROLS_KEY_PREFIX = "pulsantiera_controls_s";
 const SERATA_ACCESS_KEY = "pulsantiera_serata_access";
+const LIVE_SERATA_HINT_KEY = "pulsantiera_live_serata_hint";
 const ADMIN_CONTROLS_COLLECTION = "admin_controls";
 const ADMIN_SERATA_ACCESS_DOC = "serata_access";
 const LOGIN_NOTICE_KEY = "pulsantiera_login_notice";
@@ -624,6 +648,10 @@ const DEFAULT_FEATURE_CONTROLS = {
   predictionFields: {},
   updatedAtMs: 0,
   updatedByUsername: "",
+};
+const DEFAULT_LIVE_SERATA_HINT = {
+  enabled: false,
+  serata: "1",
 };
 const RECAP_CHART_START_MIN = 20 * 60 + 45;
 const RECAP_CHART_END_MIN = (24 * 60) + (2 * 60 + 45);
@@ -668,6 +696,8 @@ const runtimeDebug = {
   lastError: "",
 };
 let featureControls = { ...DEFAULT_FEATURE_CONTROLS };
+let liveSerataHintConfig = { ...DEFAULT_LIVE_SERATA_HINT };
+let liveSerataHintDismissed = false;
 let currentArtistNames = [];
 const tutorialState = {
   open: false,
@@ -763,6 +793,29 @@ function controlsStorageKey(serata = cloud.serata){
   return `${ADMIN_CONTROLS_KEY_PREFIX}${String(serata || "0")}`;
 }
 
+function normalizeSerataValue(value){
+  const n = Number(value);
+  if(!Number.isFinite(n)) return "1";
+  return String(clamp(Math.round(n), 1, 5));
+}
+
+function liveHintSignature(cfg){
+  const safe = cfg && typeof cfg === "object" ? cfg : DEFAULT_LIVE_SERATA_HINT;
+  return `${safe.enabled ? "1" : "0"}:s${normalizeSerataValue(safe.serata || "1")}`;
+}
+
+function isLiveHintDismissed(){
+  return !!liveSerataHintDismissed;
+}
+
+function dismissLiveHint(){
+  liveSerataHintDismissed = true;
+}
+
+function clearLiveHintDismissal(){
+  liveSerataHintDismissed = false;
+}
+
 function defaultSerataAccess(){
   return { "1": true, "2": true, "3": true, "4": true, "5": true };
 }
@@ -808,6 +861,63 @@ function loadFeatureControls(serata = cloud.serata){
   } catch {
     return { ...DEFAULT_FEATURE_CONTROLS };
   }
+}
+
+function loadLiveSerataHintConfig(){
+  try{
+    const raw = localStorage.getItem(LIVE_SERATA_HINT_KEY);
+    if(!raw) return { ...DEFAULT_LIVE_SERATA_HINT };
+    const parsed = JSON.parse(raw);
+    return {
+      enabled: !!parsed?.enabled,
+      serata: normalizeSerataValue(parsed?.serata || "1"),
+    };
+  } catch {
+    return { ...DEFAULT_LIVE_SERATA_HINT };
+  }
+}
+
+function clearLiveSerataNavHighlight(){
+  if(btnPrevSerata) btnPrevSerata.classList.remove("live-serata-target");
+  if(btnNextSerata) btnNextSerata.classList.remove("live-serata-target");
+}
+
+function renderLiveSerataHint(){
+  clearLiveSerataNavHighlight();
+  if(!liveSerataHint) return;
+
+  const enabled = !!liveSerataHintConfig?.enabled;
+  const targetSerata = normalizeSerataValue(liveSerataHintConfig?.serata || "1");
+  const currentSerata = normalizeSerataValue(cloud.serata || "1");
+  const targetN = Number(targetSerata);
+  const currentN = Number(currentSerata);
+  const sameSerata = Number.isFinite(targetN) && Number.isFinite(currentN) && targetN === currentN;
+  const hasDirection = Number.isFinite(targetN) && Number.isFinite(currentN) && !sameSerata;
+
+  if(!enabled || isLiveHintDismissed()){
+    liveSerataHint.hidden = true;
+    return;
+  }
+
+  const toNext = hasDirection && targetN > currentN;
+  const arrow = hasDirection ? (toNext ? "→" : "←") : "•";
+  if(liveSerataHintArrow) liveSerataHintArrow.textContent = arrow;
+  if(liveSerataHintText){
+    liveSerataHintText.textContent = sameSerata
+      ? `Votazioni Serata ${targetSerata} attive · sei già qui`
+      : `Votazioni Serata ${targetSerata} attive`;
+  }
+  if(btnGoLiveSerata){
+    btnGoLiveSerata.dataset.targetSerata = targetSerata;
+    btnGoLiveSerata.title = `Vai alla serata ${targetSerata}`;
+    btnGoLiveSerata.disabled = sameSerata;
+  }
+  if(hasDirection && toNext){
+    if(btnNextSerata) btnNextSerata.classList.add("live-serata-target");
+  } else if(hasDirection){
+    if(btnPrevSerata) btnPrevSerata.classList.add("live-serata-target");
+  }
+  liveSerataHint.hidden = false;
 }
 
 function artistControlKey(name){
@@ -902,11 +1012,16 @@ function applyFeatureControlsUI(){
   if(!recapOn && recapPanel?.classList.contains("active")){
     setTab("quick");
   }
+  renderLiveSerataHint();
   updateFloatingQuickPadVisibility();
 }
 
 function refreshFeatureControlsFromStorage(){
   featureControls = loadFeatureControls(cloud.serata);
+  const prevSig = liveHintSignature(liveSerataHintConfig);
+  liveSerataHintConfig = loadLiveSerataHintConfig();
+  const nextSig = liveHintSignature(liveSerataHintConfig);
+  if(prevSig !== nextSig) clearLiveHintDismissal();
   if(featureControls.quickEnabled !== false){
     staticAnalyticsState = null;
   }
@@ -1026,10 +1141,20 @@ async function syncAdminConfigFromCloud(serata = cloud.serata){
       try{
         localStorage.setItem(controlsStorageKey(serata), JSON.stringify(payload));
       } catch {}
+      if(c?.liveHint && typeof c.liveHint === "object"){
+        const livePayload = {
+          enabled: !!c.liveHint?.enabled,
+          serata: normalizeSerataValue(c.liveHint?.serata || "1"),
+        };
+        try{
+          localStorage.setItem(LIVE_SERATA_HINT_KEY, JSON.stringify(livePayload));
+        } catch {}
+      }
     }
 
     if(accessSnap?.exists){
-      const src = accessSnap.data()?.access || {};
+      const accessData = accessSnap.data() || {};
+      const src = accessData?.access || {};
       const base = defaultSerataAccess();
       for(const k of Object.keys(base)){
         base[k] = src?.[k] !== false;
@@ -1037,6 +1162,16 @@ async function syncAdminConfigFromCloud(serata = cloud.serata){
       try{
         localStorage.setItem(SERATA_ACCESS_KEY, JSON.stringify(base));
       } catch {}
+      if(accessData?.liveHint && typeof accessData.liveHint === "object"){
+        const live = accessData.liveHint;
+        const livePayload = {
+          enabled: !!live?.enabled,
+          serata: normalizeSerataValue(live?.serata || "1"),
+        };
+        try{
+          localStorage.setItem(LIVE_SERATA_HINT_KEY, JSON.stringify(livePayload));
+        } catch {}
+      }
     }
   } catch (err){
     console.warn("Sync admin config cloud fallita:", err);
@@ -1048,6 +1183,12 @@ window.addEventListener("storage", (ev) => {
   if(!cloud.serata) return;
   if(ev.key === controlsStorageKey(cloud.serata)){
     refreshFeatureControlsFromStorage();
+    return;
+  }
+  if(ev.key === LIVE_SERATA_HINT_KEY){
+    liveSerataHintConfig = loadLiveSerataHintConfig();
+    clearLiveHintDismissal();
+    renderLiveSerataHint();
     return;
   }
   if(ev.key === SERATA_ACCESS_KEY && !isSerataEnabled(cloud.serata)){
@@ -1295,6 +1436,8 @@ function updateUserInfo(){
     if(serataNavValue) serataNavValue.textContent = "—";
     if(btnPrevSerata) btnPrevSerata.disabled = true;
     if(btnNextSerata) btnNextSerata.disabled = true;
+    clearLiveSerataNavHighlight();
+    if(liveSerataHint) liveSerataHint.hidden = true;
     return;
   }
   userInfo.textContent = `${cloud.username} · S${cloud.serata}`;
@@ -1302,6 +1445,7 @@ function updateUserInfo(){
   const s = Number(cloud.serata || 0);
   if(btnPrevSerata) btnPrevSerata.disabled = !Number.isFinite(s) || s <= 1;
   if(btnNextSerata) btnNextSerata.disabled = !Number.isFinite(s) || s >= 5;
+  renderLiveSerataHint();
 }
 
 function switchToSerata(targetSerata){
@@ -1372,6 +1516,21 @@ function wireSessionActions(){
   if(btnNextSerata && !btnNextSerata.dataset.bound){
     btnNextSerata.dataset.bound = "1";
     btnNextSerata.addEventListener("click", () => moveSerata(1));
+  }
+  if(btnGoLiveSerata && !btnGoLiveSerata.dataset.bound){
+    btnGoLiveSerata.dataset.bound = "1";
+    btnGoLiveSerata.addEventListener("click", () => {
+      const target = String(btnGoLiveSerata.dataset.targetSerata || "").trim();
+      if(!/^[1-5]$/.test(target)) return;
+      switchToSerata(target);
+    });
+  }
+  if(btnHideLiveSerataHint && !btnHideLiveSerataHint.dataset.bound){
+    btnHideLiveSerataHint.dataset.bound = "1";
+    btnHideLiveSerataHint.addEventListener("click", () => {
+      dismissLiveHint();
+      renderLiveSerataHint();
+    });
   }
   // Delegated fallback in case the topbar node gets recreated/replaced.
   if(!document.body.dataset.logoutDelegateBound){
