@@ -700,6 +700,32 @@ body.tutorial-open{
   text-overflow:ellipsis;
   white-space:nowrap;
 }
+.recent-activity-row{
+  align-items:flex-start;
+}
+.recent-activity-main{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.global-recent-actions{
+  gap:6px;
+}
+.global-recent-list{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap:0;
+}
+#globalRecentActivities{
+  grid-template-columns: 1fr;
+}
+@media (min-width: 760px){
+  .global-recent-list.is-expanded{
+    grid-template-columns: 1fr 1fr;
+    column-gap:12px;
+  }
+}
 
 .profile{
   display:flex; flex-wrap:wrap; gap:10px;
