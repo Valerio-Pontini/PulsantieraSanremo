@@ -264,6 +264,18 @@ body.tutorial-open{
   margin-bottom: 14px;
 }
 .card-head{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-bottom: 10px;}
+.card-collapse-toggle{
+  margin-left:auto;
+  padding:6px 10px;
+  font-size:12px;
+  line-height:1.2;
+}
+.card-collapsible-body{
+  display:block;
+}
+.collapsible-card.is-collapsed .card-collapsible-body{
+  display:none;
+}
 
 .grid{
   display:grid;
@@ -638,6 +650,22 @@ body.tutorial-open{
   border-radius:999px;
   background: rgba(11,16,32,.45);
 }
+.recap-filter-row{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 280px));
+  gap:10px;
+}
+.recap-chart-scroll{
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding-bottom:6px;
+  -webkit-overflow-scrolling:touch;
+  touch-action: pan-x;
+  scrollbar-gutter: stable both-edges;
+}
+.recap-chart-canvas{
+  min-width: 760px;
+}
 .rank-grid{
   display:grid;
   grid-template-columns: 1fr;
@@ -766,15 +794,13 @@ body.tutorial-open{
   }
   .session{
     display:flex;
-    flex-wrap:nowrap;
+    flex-wrap:wrap;
     align-items:center;
     justify-content:flex-start;
     gap:8px;
     width:100%;
-    overflow-x:auto;
-    overflow-y:hidden;
+    overflow:visible;
     -webkit-overflow-scrolling:touch;
-    scrollbar-width:thin;
   }
   .session .pill,
   .session .ghost{
@@ -788,6 +814,21 @@ body.tutorial-open{
   }
   .session .ghost{
     padding:8px 9px;
+  }
+  #pillSerataNav,
+  #btnPrevSerata,
+  #btnNextSerata{
+    order:-1;
+  }
+  #pillSerataNav{
+    min-height:38px;
+  }
+  .serata-nav-btn{
+    min-width:42px;
+    text-align:center;
+    font-size:16px;
+    font-weight:900;
+    padding:8px 10px;
   }
   .session .user-pill{
     max-width:140px;
@@ -834,9 +875,6 @@ body.tutorial-open{
     white-space:normal;
     text-align:center;
     line-height:1.2;
-  }
-  .tabs .tab:last-child{
-    grid-column: 1 / -1;
   }
   .panel-head{
     flex-direction:column;
@@ -894,6 +932,12 @@ body.tutorial-open{
     border-radius:10px;
     padding:6px 8px;
   }
+  .recap-filter-row{
+    grid-template-columns:1fr;
+  }
+  .recap-chart-canvas{
+    min-width: 660px;
+  }
   .score-row{
     grid-template-columns: 1fr;
   }
@@ -908,6 +952,16 @@ body.tutorial-open{
   }
   .chart-legend{
     grid-template-columns: 1fr;
+  }
+  .recap-chart-canvas{
+    min-width: 560px;
+  }
+  #pillSerataNav{
+    min-width:96px;
+  }
+  .serata-nav-btn{
+    min-width:44px;
+    min-height:38px;
   }
   .session .user-pill{
     max-width:120px;
@@ -938,6 +992,118 @@ body.tutorial-open{
   transform: translateX(-50%) translateY(-2px);
 }
 
+.floating-quick-pad{
+  position: fixed;
+  right: 14px;
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 45;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:8px;
+  transition: transform .18s ease;
+}
+.floating-quick-pad.is-scrolling{
+  transform: translateY(-8px);
+}
+.floating-quick-bubble{
+  width:48px;
+  height:48px;
+  border-radius: 999px;
+  border:1px solid rgba(31,42,77,.75);
+  background: linear-gradient(135deg, rgba(88,166,255,.7), rgba(163,107,255,.6));
+  color: var(--text);
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+  display:grid;
+  place-items:center;
+  box-shadow: 0 14px 30px rgba(0,0,0,.35);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.floating-quick-bubble:hover{
+  filter: brightness(1.06);
+}
+.floating-quick-shortcuts{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:6px;
+  max-width:min(78vw, 300px);
+  max-height:min(46vh, 220px);
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding:8px;
+  border-radius: 14px;
+  border:1px solid rgba(31,42,77,.75);
+  background: rgba(11,16,32,.92);
+  box-shadow: 0 14px 30px rgba(0,0,0,.35);
+  backdrop-filter: blur(8px);
+}
+.floating-quick-pad[hidden],
+.floating-quick-shortcuts[hidden]{
+  display:none !important;
+}
+.floating-quick-btn{
+  flex:0 0 auto;
+  width:34px;
+  height:34px;
+  border-radius: 999px;
+  border:1px solid rgba(31,42,77,.75);
+  background: rgba(14,22,48,.65);
+  color: var(--text);
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+  font-size:18px;
+  line-height:1;
+  padding:0;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.floating-quick-btn:hover{
+  background: rgba(88,166,255,.28);
+  border-color: rgba(88,166,255,.45);
+}
+
+@media (max-width: 760px){
+  .floating-quick-pad{
+    right: 12px;
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
+  .floating-quick-bubble{
+    width:46px;
+    height:46px;
+    font-size:21px;
+  }
+  .floating-quick-shortcuts{
+    max-width:min(82vw, 280px);
+  }
+}
+
+@media (max-width: 420px){
+  .floating-quick-pad{
+    right: 10px;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+  .floating-quick-bubble{
+    width:44px;
+    height:44px;
+    font-size:20px;
+  }
+  .floating-quick-shortcuts{
+    max-width:min(88vw, 270px);
+    gap:5px;
+    padding:7px;
+  }
+  .floating-quick-btn{
+    width:32px;
+    height:32px;
+    font-size:17px;
+  }
+}
+
 .tutorial-overlay{
   position: fixed;
   inset: 0;
@@ -964,119 +1130,4 @@ body.tutorial-open{
 .tutorial-body{
   margin: 8px 0 0;
   line-height: 1.45;
-}
-/* ===== Mobile Topbar fix (incolla in fondo) ===== */
-@media (max-width: 760px){
-
-  /* iOS safe area + layout a due righe */
-  .topbar{
-    position: sticky;
-    top: 0;
-    padding-top: calc(10px + env(safe-area-inset-top));
-    padding-left: 12px;
-    padding-right: 12px;
-    padding-bottom: 10px;
-
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  /* Riga brand più “stretta” e leggibile */
-  .brand{
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 10px;
-    min-width: 0;
-  }
-  .brand-title{
-    font-size: 15px;
-    line-height: 1.1;
-  }
-
-  /* La session diventa una “riga scrollabile” pulita */
-  .session{
-    width: 100%;
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: center;
-    gap: 8px;
-
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-
-    /* evita effetto “attaccato ai bordi” */
-    padding-bottom: 2px;
-
-    /* snap = feels native */
-    scroll-snap-type: x mandatory;
-  }
-
-  .session > *{
-    scroll-snap-align: start;
-  }
-
-  /* Pill più compatte e uniformi (meno “mattoni”) */
-  .session .pill,
-  .session .ghost,
-  .session .primary{
-    flex: 0 0 auto;
-    height: 34px;
-    padding: 0 10px;
-    font-size: 12px;
-    border-radius: 999px;
-    white-space: nowrap;
-    line-height: 34px; /* centra testo verticalmente senza impazzire */
-  }
-
-  /* Se dentro pill hai elementi flex, mantieni centratura */
-  .pill{
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* Tema: dropdown più corto e meno “invadente” */
-  .theme-picker{
-    gap: 6px;
-    padding: 0 10px;
-  }
-  .theme-picker .muted{
-    font-size: 11px;
-  }
-  .theme-select{
-    min-width: 96px;
-    max-width: 120px;
-    height: 30px;
-    padding: 0 28px 0 10px;
-    font-size: 12px;
-    line-height: 30px;
-  }
-
-  /* Username pill: evita che “spinga” tutto */
-  .session .user-pill{
-    max-width: 150px;
-    min-width: 0;
-  }
-  .session .user-pill #userInfo{
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-    max-width: 100%;
-  }
-
-  /* Scrollbar: meno brutta su mobile */
-  .session::-webkit-scrollbar{ height: 6px; }
-  .session::-webkit-scrollbar-thumb{
-    background: rgba(154,166,214,.25);
-    border-radius: 999px;
-  }
-  .session::-webkit-scrollbar-track{
-    background: transparent;
-  }
 }
