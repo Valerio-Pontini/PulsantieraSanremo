@@ -49,16 +49,21 @@ const btnPredAllOff = document.querySelector("#btnPredAllOff");
 const toggleQuick = document.querySelector("#toggleQuick");
 const toggleDeep = document.querySelector("#toggleDeep");
 const togglePredictions = document.querySelector("#togglePredictions");
+const toggleRecap = document.querySelector("#toggleRecap");
 const btnSerateAllOn = document.querySelector("#btnSerateAllOn");
 const btnSerateAllOff = document.querySelector("#btnSerateAllOff");
 const btnSaveControls = document.querySelector("#btnSaveControls");
 const btnBackApp = document.querySelector("#btnBackApp");
 const panelMeta = document.querySelector("#panelMeta");
 const adminStatus = document.querySelector("#adminStatus");
+const adminSerataSelect = document.querySelector("#adminSerataSelect");
+const btnAdminPrevSerata = document.querySelector("#btnAdminPrevSerata");
+const btnAdminNextSerata = document.querySelector("#btnAdminNextSerata");
 
 let profile = null;
 let unlocked = false;
 let artists = [];
+let selectedSerata = "1";
 
 const cloud = {
   ready: false,
@@ -88,6 +93,7 @@ function defaultControls(){
     quickEnabled: true,
     deepEnabled: true,
     predictionsEnabled: true,
+    recapEnabled: true,
     deepArtists: {},
     predictionFields: {},
     updatedAtMs: 0,
@@ -103,6 +109,7 @@ function normalizeControls(raw){
     quickEnabled: parsed?.quickEnabled !== false,
     deepEnabled: parsed?.deepEnabled !== false,
     predictionsEnabled: parsed?.predictionsEnabled !== false,
+    recapEnabled: parsed?.recapEnabled !== false,
     deepArtists: parsed?.deepArtists && typeof parsed.deepArtists === "object" ? parsed.deepArtists : {},
     predictionFields: parsed?.predictionFields && typeof parsed.predictionFields === "object" ? parsed.predictionFields : {},
     updatedAtMs: Number(parsed?.updatedAtMs || 0),
@@ -148,6 +155,21 @@ function saveSerataAccessLocal(access){
   for(const k of Object.keys(base)) base[k] = access?.[k] !== false;
   localStorage.setItem(SERATA_ACCESS_KEY, JSON.stringify(base));
   return base;
+}
+
+function clampSerata(value){
+  const n = Number(value);
+  if(!Number.isFinite(n)) return "1";
+  return String(Math.max(1, Math.min(5, Math.round(n))));
+}
+
+function updateSerataPickerUI(){
+  const s = clampSerata(selectedSerata);
+  selectedSerata = s;
+  if(adminSerataSelect) adminSerataSelect.value = s;
+  const sn = Number(s);
+  if(btnAdminPrevSerata) btnAdminPrevSerata.disabled = sn <= 1;
+  if(btnAdminNextSerata) btnAdminNextSerata.disabled = sn >= 5;
 }
 
 function controlsDocRef(serata){
@@ -344,6 +366,7 @@ function collectControlsFromUI(base){
     quickEnabled: !!toggleQuick.checked,
     deepEnabled: !!toggleDeep.checked,
     predictionsEnabled: !!togglePredictions.checked,
+    recapEnabled: !!toggleRecap.checked,
     deepArtists,
     predictionFields,
     updatedAtMs: now(),
@@ -352,19 +375,21 @@ function collectControlsFromUI(base){
 }
 
 async function renderControls(){
-  let c = loadControlsLocal(profile.serata);
-  const fromCloud = await loadControlsCloud(profile.serata);
+  updateSerataPickerUI();
+  let c = loadControlsLocal(selectedSerata);
+  const fromCloud = await loadControlsCloud(selectedSerata);
   if(fromCloud){
     c = fromCloud;
-    saveControlsLocal(profile.serata, c);
+    saveControlsLocal(selectedSerata, c);
   }
 
   toggleQuick.checked = c.quickEnabled !== false;
   toggleDeep.checked = c.deepEnabled !== false;
   togglePredictions.checked = c.predictionsEnabled !== false;
-  panelMeta.textContent = `Utente: ${profile.username} · Serata ${profile.serata}`;
+  toggleRecap.checked = c.recapEnabled !== false;
+  panelMeta.textContent = `Utente: ${profile.username} · Modifica Serata ${selectedSerata}`;
 
-  await loadArtistsForSerata(profile.serata);
+  await loadArtistsForSerata(selectedSerata);
   renderArtistControls(c);
   renderPredictionControls(c);
 
@@ -429,6 +454,7 @@ async function showControls(){
     }
   }
 
+  selectedSerata = clampSerata(selectedSerata || profile?.serata || "1");
   await renderControls();
   if(cloud.ready && cloud.uid) setStatus("Modifica le opzioni e salva (sync cloud attivo).");
 }
@@ -484,9 +510,10 @@ adminAuthForm?.addEventListener("submit", async (e) => {
 btnSaveControls?.addEventListener("click", async () => {
   if(!unlocked || !profile) return;
 
-  const current = loadControlsLocal(profile.serata);
+  const serataTarget = clampSerata(selectedSerata);
+  const current = loadControlsLocal(serataTarget);
   const next = collectControlsFromUI(current);
-  saveControlsLocal(profile.serata, next);
+  saveControlsLocal(serataTarget, next);
 
   const access = {};
   document.querySelectorAll("input[data-serata-access]").forEach((input) => {
@@ -497,15 +524,15 @@ btnSaveControls?.addEventListener("click", async () => {
   let cloudOk = true;
   if(cloud.ready && cloud.uid){
     const [okControls, okAccess] = await Promise.all([
-      saveControlsCloud(profile.serata, next),
+      saveControlsCloud(serataTarget, next),
       saveSerataAccessCloud(access),
     ]);
     cloudOk = okControls && okAccess;
   }
 
   setStatus(cloudOk
-    ? "Impostazioni salvate (locale + cloud)."
-    : "Impostazioni salvate in locale; sync cloud non riuscito.");
+    ? `Impostazioni Serata ${serataTarget} salvate (locale + cloud).`
+    : `Impostazioni Serata ${serataTarget} salvate in locale; sync cloud non riuscito.`);
 });
 
 btnArtistsAllOn?.addEventListener("click", () => {
@@ -519,6 +546,18 @@ btnPredAllOn?.addEventListener("click", () => {
 });
 btnPredAllOff?.addEventListener("click", () => {
   predictionControlsList?.querySelectorAll("input[data-pred-id]").forEach((input) => { input.checked = false; });
+});
+adminSerataSelect?.addEventListener("change", async () => {
+  selectedSerata = clampSerata(adminSerataSelect.value || selectedSerata);
+  await renderControls();
+});
+btnAdminPrevSerata?.addEventListener("click", async () => {
+  selectedSerata = clampSerata(Number(selectedSerata) - 1);
+  await renderControls();
+});
+btnAdminNextSerata?.addEventListener("click", async () => {
+  selectedSerata = clampSerata(Number(selectedSerata) + 1);
+  await renderControls();
 });
 btnSerateAllOn?.addEventListener("click", () => {
   document.querySelectorAll("input[data-serata-access]").forEach((input) => { input.checked = true; });
@@ -536,6 +575,8 @@ function boot(){
     showDenied();
     return;
   }
+  selectedSerata = clampSerata(profile.serata);
+  updateSerataPickerUI();
   showPasswordGate();
 }
 
