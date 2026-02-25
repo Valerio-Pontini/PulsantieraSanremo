@@ -575,6 +575,7 @@ const recapLegend = $("#recapLegend");
 const recapChart = $("#recapChart");
 const recapInfo = $("#recapInfo");
 const recapGlobalStatus = $("#recapGlobalStatus");
+const btnToggleRecapEventLines = $("#btnToggleRecapEventLines");
 const recapSelectionMeta = $("#recapSelectionMeta");
 const recapSelectionDetails = $("#recapSelectionDetails");
 const PREDICTION_SELECT_IDS = [
@@ -590,6 +591,7 @@ let chartSelectionIndex = -1;
 let chartInteractiveState = { mode: "kpi", points: [], seriesMeta: [] };
 let recapSelectionIndex = -1;
 let recapInteractiveState = { points: [] };
+let recapEventLinesVisible = true;
 let singerRankingsExpanded = false;
 let globalArtistRankingsExpanded = false;
 let floatingQuickPadOpen = false;
@@ -1106,6 +1108,12 @@ function renderFloatingQuickPad(){
   `).join("");
   setFloatingQuickPadOpen(false);
   updateFloatingQuickPadVisibility();
+}
+
+function updateRecapEventLinesToggleUI(){
+  if(!btnToggleRecapEventLines) return;
+  btnToggleRecapEventLines.classList.toggle("active", recapEventLinesVisible);
+  btnToggleRecapEventLines.textContent = recapEventLinesVisible ? "Nascondi eventi" : "Mostra eventi";
 }
 
 function renderQuickButtons(){
@@ -1922,6 +1930,13 @@ if(recapIntervalSelect){
     const next = Number(recapIntervalSelect.value || RECAP_CHART_BUCKET_MIN_DEFAULT);
     recapIntervalMin = RECAP_INTERVAL_OPTIONS.includes(next) ? next : RECAP_CHART_BUCKET_MIN_DEFAULT;
     recapSelectionIndex = -1;
+    drawRecapChart();
+  });
+}
+if(btnToggleRecapEventLines){
+  btnToggleRecapEventLines.addEventListener("click", () => {
+    recapEventLinesVisible = !recapEventLinesVisible;
+    updateRecapEventLinesToggleUI();
     drawRecapChart();
   });
 }
@@ -3225,33 +3240,35 @@ function drawRecapChart(){
 
   }
 
-  ctx.setLineDash([4, 4]);
-  for(let i = 0; i < events.length; i++){
-    const ev = events[i];
-    const idx = clamp(Math.floor(ev.minute / bucketMin), 0, bucketCount - 1);
-    const x = xFrom(idx);
-    ctx.strokeStyle = "rgba(163,107,255,.75)";
-    ctx.beginPath();
-    ctx.moveTo(x, padY);
-    ctx.lineTo(x, h - padY);
-    ctx.stroke();
-    ctx.fillStyle = "rgba(163,107,255,.96)";
-    ctx.fillRect(x - 2, padY, 4, 9);
-    ctx.beginPath();
-    ctx.moveTo(x, h - padY + 1);
-    ctx.lineTo(x - 4, h - padY + 8);
-    ctx.lineTo(x + 4, h - padY + 8);
-    ctx.closePath();
-    ctx.fill();
+  if(recapEventLinesVisible){
+    ctx.setLineDash([4, 4]);
+    for(let i = 0; i < events.length; i++){
+      const ev = events[i];
+      const idx = clamp(Math.floor(ev.minute / bucketMin), 0, bucketCount - 1);
+      const x = xFrom(idx);
+      ctx.strokeStyle = "rgba(163,107,255,.75)";
+      ctx.beginPath();
+      ctx.moveTo(x, padY);
+      ctx.lineTo(x, h - padY);
+      ctx.stroke();
+      ctx.fillStyle = "rgba(163,107,255,.96)";
+      ctx.fillRect(x - 2, padY, 4, 9);
+      ctx.beginPath();
+      ctx.moveTo(x, h - padY + 1);
+      ctx.lineTo(x - 4, h - padY + 8);
+      ctx.lineTo(x + 4, h - padY + 8);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.setLineDash([]);
   }
-  ctx.setLineDash([]);
 
   const filterMeta = recapSeriesMeta(recapFilterValue);
   if(recapLegend){
     recapLegend.innerHTML = `
       <span class="chart-pill"><span class="chart-swatch" style="background:rgba(255,211,107,.95)"></span>Personale</span>
       <span class="chart-pill"><span class="chart-swatch" style="background:rgba(88,166,255,.95)"></span>Globale</span>
-      <span class="chart-pill"><span class="chart-swatch" style="background:rgba(163,107,255,.9)"></span>Eventi</span>
+      ${recapEventLinesVisible ? '<span class="chart-pill"><span class="chart-swatch" style="background:rgba(163,107,255,.9)"></span>Eventi</span>' : ""}
       <span class="chart-pill">Filtro: ${escapeHtml(filterMeta.label)}</span>
     `;
   }
@@ -3286,6 +3303,7 @@ function drawRecapChart(){
 }
 
 function renderRecapTab(){
+  updateRecapEventLinesToggleUI();
   if(recapGlobalStatus){
     if(globalAnalytics.loading) recapGlobalStatus.textContent = "Aggiornamento globale…";
     else if(globalAnalytics.error) recapGlobalStatus.textContent = `${globalAnalytics.error}`;
