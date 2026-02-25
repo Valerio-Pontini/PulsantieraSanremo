@@ -550,6 +550,8 @@ const globalChartLegend = $("#globalChartLegend");
 const globalChart = $("#globalChart");
 const globalChartInfo = $("#globalChartInfo");
 const btnToggleGlobalArtistRankings = $("#btnToggleGlobalArtistRankings");
+const btnExpandGlobalRecentActivities = $("#btnExpandGlobalRecentActivities");
+const btnCollapseGlobalRecentActivities = $("#btnCollapseGlobalRecentActivities");
 const globalRecentActivities = $("#globalRecentActivities");
 const globalArtistRankings = $("#globalArtistRankings");
 const globalPredictionSummary = $("#globalPredictionSummary");
@@ -594,6 +596,7 @@ let recapInteractiveState = { points: [] };
 let recapEventLinesVisible = true;
 let singerRankingsExpanded = false;
 let globalArtistRankingsExpanded = false;
+let globalRecentActivitiesExpanded = false;
 let floatingQuickPadOpen = false;
 let floatingQuickScrollTimer = null;
 const CLOUD_SYNC_DEBOUNCE_MS = 1200;
@@ -1950,6 +1953,18 @@ if(btnToggleGlobalArtistRankings){
   btnToggleGlobalArtistRankings.addEventListener("click", () => {
     globalArtistRankingsExpanded = !globalArtistRankingsExpanded;
     renderGlobalArtistRankings();
+  });
+}
+if(btnExpandGlobalRecentActivities){
+  btnExpandGlobalRecentActivities.addEventListener("click", () => {
+    globalRecentActivitiesExpanded = true;
+    renderGlobalRecentActivities();
+  });
+}
+if(btnCollapseGlobalRecentActivities){
+  btnCollapseGlobalRecentActivities.addEventListener("click", () => {
+    globalRecentActivitiesExpanded = false;
+    renderGlobalRecentActivities();
   });
 }
 if(chart){
@@ -3332,7 +3347,12 @@ function avgNums(values){
 
 function collectGlobalSnapshotsFromDocs(docs){
   return docs
-    .map((doc) => normalizeState(doc.state || {}))
+    .map((doc) => {
+      const s = normalizeState(doc.state || {});
+      const username = String(doc?.username || "").trim();
+      if(username) s.__username = username;
+      return s;
+    })
     .filter((s) => {
       const hasActions = arr(s.actions).length > 0;
       const hasDeepVotes = arr(s.deepVotes).length > 0;
@@ -4012,34 +4032,52 @@ function renderGlobalQuickEmojiRankings(){
 
 function renderGlobalRecentActivities(){
   if(!globalRecentActivities) return;
-  const recent = arr(globalAnalytics.snapshots)
-    .flatMap((snap) => arr(snap?.actions))
+  if(btnExpandGlobalRecentActivities){
+    btnExpandGlobalRecentActivities.classList.toggle("active", globalRecentActivitiesExpanded);
+    btnExpandGlobalRecentActivities.disabled = globalRecentActivitiesExpanded;
+  }
+  if(btnCollapseGlobalRecentActivities){
+    btnCollapseGlobalRecentActivities.classList.toggle("active", !globalRecentActivitiesExpanded);
+    btnCollapseGlobalRecentActivities.disabled = !globalRecentActivitiesExpanded;
+  }
+  const allInteractions = arr(globalAnalytics.snapshots)
+    .flatMap((snap) => arr(snap?.actions).map((a) => ({
+      ...a,
+      __username: String(snap?.__username || "").trim(),
+    })))
     .filter((a) => (a?.kind === "react" || a?.kind === "event") && Number(a?.t) > 0 && String(a?.type || "").trim())
-    .sort((a, b) => Number(b.t || 0) - Number(a.t || 0))
-    .slice(0, 5);
-  if(recent.length === 0){
+    .sort((a, b) => Number(b.t || 0) - Number(a.t || 0));
+  if(allInteractions.length === 0){
+    if(btnExpandGlobalRecentActivities) btnExpandGlobalRecentActivities.disabled = true;
+    if(btnCollapseGlobalRecentActivities) btnCollapseGlobalRecentActivities.disabled = true;
     globalRecentActivities.innerHTML = `<div class="muted small">Nessuna reazione globale recente disponibile.</div>`;
     return;
   }
-  const rows = recent.map((a, idx) => {
+  if(btnExpandGlobalRecentActivities) btnExpandGlobalRecentActivities.disabled = globalRecentActivitiesExpanded;
+  if(btnCollapseGlobalRecentActivities) btnCollapseGlobalRecentActivities.disabled = !globalRecentActivitiesExpanded;
+  const list = globalRecentActivitiesExpanded ? allInteractions : allInteractions.slice(0, 5);
+  const rows = list.map((a, idx) => {
     const emoji = EMOJI[a.type] || "✨";
     const label = ACTION_LABEL[a.type] || a.type;
     const note = String(a.note || "").trim();
+    const username = String(a.__username || "").trim();
     return `
-      <div class="rank-row">
-        <span>
-          ${idx + 1}. ${emoji} ${escapeHtml(label)}
+      <div class="rank-row recent-activity-row">
+        <div class="recent-activity-main">
+          <div>${emoji} ${escapeHtml(label)}</div>
+          ${username ? `<div class="muted small mono">@${escapeHtml(username)}</div>` : ""}
           ${note ? `<div class="muted small">“${escapeHtml(note)}”</div>` : ""}
-        </span>
+        </div>
         <span class="mono">${fmtTime(a.t)}</span>
       </div>
     `;
   }).join("");
+  const listClass = globalRecentActivitiesExpanded ? "global-recent-list is-expanded" : "global-recent-list";
   globalRecentActivities.innerHTML = `
     <div class="rank-box">
-      <div class="rank-title">Ultime 5 Reazioni Registrate</div>
-      <div class="muted small">Feed globale</div>
-      ${rows}
+      <div class="rank-title">${globalRecentActivitiesExpanded ? "Tutte le Interazioni Registrate" : "Ultime 5 Reazioni Registrate"}</div>
+      <div class="muted small">${globalRecentActivitiesExpanded ? `${allInteractions.length} interazioni · ordine decrescente per timestamp` : "Feed globale · ultimi eventi"}</div>
+      <div class="${listClass}">${rows}</div>
     </div>
   `;
 }
