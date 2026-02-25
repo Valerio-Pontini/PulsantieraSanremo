@@ -43,6 +43,12 @@
       <div class="pill user-pill">
         <span id="userInfo" class="mono">—</span>
       </div>
+      <button class="ghost serata-nav-btn" id="btnPrevSerata" title="Serata precedente" aria-label="Serata precedente">←</button>
+      <div class="pill serata-nav-pill" id="pillSerataNav">
+        <span class="muted">Serata</span>
+        <span id="serataNavValue" class="mono">—</span>
+      </div>
+      <button class="ghost serata-nav-btn" id="btnNextSerata" title="Serata successiva" aria-label="Serata successiva">→</button>
       <button class="ghost" id="btnSwitchUser" title="Cambia utente">Esci</button>
     </div>
   </header>
@@ -76,6 +82,7 @@
       <button class="tab" data-tab="stats" role="tab" aria-selected="false">Analitica 📈</button>
       <button class="tab" data-tab="challenge" role="tab" aria-selected="false">Predizioni 🔮</button>
       <button class="tab" data-tab="global" role="tab" aria-selected="false">Globale 🌍</button>
+      <button class="tab" data-tab="recap" role="tab" aria-selected="false">Resoconto 🕰️</button>
     </nav>
 
     <!-- PANELS -->
@@ -301,11 +308,23 @@
       <div class="panel-head">
         <div>
           <div class="h2">Analitica Globale</div>
-          <div class="muted">Media su tutti gli utenti della stessa serata.</div>
+          <div class="muted">Media su tutti gli utenti cloud della stessa serata.</div>
         </div>
         <div class="right-actions">
           <button class="ghost" id="btnGlobalRefresh" title="Forza aggiornamento globale">Aggiorna ora</button>
           <div id="globalStatus" class="muted small">In attesa dati cloud…</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Attività Recenti Utenti</div>
+            <div class="muted">ultime 5 reazioni globali registrate</div>
+          </div>
+        </div>
+        <div id="globalRecentActivities" class="rank-grid">
+          <div class="muted small">In attesa dati globali...</div>
         </div>
       </div>
 
@@ -369,6 +388,7 @@
             <div class="h3">Classifiche Artisti Globali</div>
             <div class="muted">medie dei voti di tutti gli utenti</div>
           </div>
+          <button class="switch-btn" id="btnToggleGlobalArtistRankings" type="button">Mostra tutte</button>
         </div>
         <div id="globalArtistRankings" class="rank-grid">
           <div class="muted small">In attesa dati globali...</div>
@@ -477,6 +497,68 @@
       </div>
     </section>
 
+    <section class="panel" id="tab-recap" role="tabpanel">
+      <div class="panel-head">
+        <div>
+          <div class="h2">Resoconto Serata Precedente</div>
+          <div class="muted">Trend reazioni nella serata, confronto personale vs globale.</div>
+          <div id="recapControlMsg" class="control-msg"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Filtro Reazioni</div>
+            <div class="muted">Singola reazione, gruppo o tutte</div>
+          </div>
+        </div>
+        <div class="recap-filter-row">
+          <label class="field">
+            <span class="field-label">Mostra andamento</span>
+            <select id="recapFilterSelect" class="input fancy-select">
+              <option value="all">Tutte le reazioni</option>
+            </select>
+          </label>
+          <label class="field">
+            <span class="field-label">Ampiezza intervallo</span>
+            <select id="recapIntervalSelect" class="input fancy-select">
+              <option value="2">2 min</option>
+              <option value="5" selected>5 min</option>
+              <option value="10">10 min</option>
+              <option value="15">15 min</option>
+              <option value="30">30 min</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Grafico Reazioni Rapide</div>
+            <div class="muted">Linea personale e media globale utenti sulla stessa fascia oraria.</div>
+          </div>
+          <div id="recapGlobalStatus" class="muted small">In attesa dati globali…</div>
+        </div>
+        <div id="recapLegend" class="chart-legend"></div>
+        <div id="recapChartScroll" class="recap-chart-scroll">
+          <canvas id="recapChart" width="1480" height="220" class="chart recap-chart-canvas"></canvas>
+        </div>
+        <div id="recapInfo" class="chart-point-info muted small">Seleziona un filtro per leggere l'andamento della serata.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="h3">Dettaglio Fascia Selezionata</div>
+            <div id="recapSelectionMeta" class="muted small">Tocca un punto del grafico per vedere eventi e riepilogo reazioni.</div>
+          </div>
+        </div>
+        <div id="recapSelectionDetails" class="list"></div>
+      </div>
+    </section>
+
     <footer class="footer">
     </footer>
   </main>
@@ -496,6 +578,10 @@
   </div>
 
   <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
+  <div id="floatingQuickPad" class="floating-quick-pad" hidden aria-label="Shortcut reazioni rapide">
+    <button id="floatingQuickBubble" class="floating-quick-bubble" type="button" aria-label="Apri reazioni rapide" aria-expanded="false">⚡</button>
+    <div id="floatingQuickShortcuts" class="floating-quick-shortcuts" hidden></div>
+  </div>
 
   <script src="./firebase-config.js" defer></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js" defer></script>
