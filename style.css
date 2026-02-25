@@ -1131,3 +1131,90 @@ body.tutorial-open{
   margin: 8px 0 0;
   line-height: 1.45;
 }
+/* --- PATCH: header mobile pulito (2 righe + controlli scrollabili) --- */
+
+@media (max-width: 760px) {
+  /* 2 righe: brand sopra, session sotto */
+  .topbar{
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 10px 10px 10px;
+  }
+
+  /* prima riga: brand */
+  .brand{
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+  }
+  .brand > div:last-child{
+    min-width: 0;
+  }
+  .brand-title{
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* seconda riga: session in una riga sola, scroll orizzontale */
+  .session{
+    width: 100%;
+    flex-wrap: nowrap;              /* <- stop “nuvola” */
+    overflow-x: auto;               /* <- scroll */
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 2px;
+    gap: 8px;
+    align-items: center;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  /* i controlli devono rimanere “chip” compatti */
+  .session .pill,
+  .session .ghost{
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  /* riduci un pelo la “pill” tema così non domina la riga */
+  .theme-picker{
+    gap: 6px;
+    padding: 6px 10px;
+  }
+  .theme-select{
+    min-width: 104px;
+    max-width: 124px;
+  }
+
+  /* user pill: limita larghezza e ellissi */
+  .session .user-pill{
+    max-width: 160px;
+  }
+  .session .user-pill #userInfo{
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* frecce: più “tappable” e coerenti */
+  .serata-nav-btn{
+    min-width: 44px;
+    min-height: 38px;
+    padding: 8px 10px;
+  }
+
+  /* opzionale: separa visivamente le frecce + serata */
+  .serata-nav-pill{
+    padding: 9px 12px;
+  }
+}
+
+/* micro-schermi: ancora più compatto */
+@media (max-width: 420px) {
+  .session .user-pill{ max-width: 130px; }
+  .theme-select{ min-width: 96px; max-width: 112px; }
+}
