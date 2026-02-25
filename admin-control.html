@@ -46,6 +46,20 @@
             <div class="h3">Controlli serata</div>
             <div id="panelMeta" class="muted small"></div>
           </div>
+          <div class="actions">
+            <button id="btnAdminPrevSerata" class="ghost" type="button" title="Serata precedente">←</button>
+            <label class="field" style="min-width:140px;">
+              <span class="field-label">Serata controllata</span>
+              <select id="adminSerataSelect" class="input fancy-select">
+                <option value="1">Serata 1</option>
+                <option value="2">Serata 2</option>
+                <option value="3">Serata 3</option>
+                <option value="4">Serata 4</option>
+                <option value="5">Serata 5 (Finale)</option>
+              </select>
+            </label>
+            <button id="btnAdminNextSerata" class="ghost" type="button" title="Serata successiva">→</button>
+          </div>
         </div>
         <div class="list">
           <label class="item">
@@ -68,6 +82,13 @@
               <div class="sub">Pre-show, pre-classifica e snapshot finale</div>
             </div>
             <input id="togglePredictions" type="checkbox" />
+          </label>
+          <label class="item">
+            <div class="meta">
+              <div class="title">Tab Resoconto</div>
+              <div class="sub">Abilita la tab con trend reazioni 20:45 → 02:45</div>
+            </div>
+            <input id="toggleRecap" type="checkbox" />
           </label>
         </div>
         <div class="actions">
