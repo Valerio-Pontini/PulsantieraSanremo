@@ -599,6 +599,19 @@
   </div>
 
   <div id="toast" class="toast" aria-live="polite" aria-atomic="true"></div>
+  <aside id="liveGuide" class="live-guide" aria-label="Guida rapida">
+    <button id="liveGuideToggle" class="live-guide-toggle" type="button" aria-expanded="true" aria-controls="liveGuideCard" title="Riduci guida">💡</button>
+    <div id="liveGuideCard" class="live-guide-card" aria-live="polite">
+      <div class="live-guide-kicker">Prossima azione</div>
+      <div id="liveGuideTitle" class="live-guide-title">Inizia da Reazioni</div>
+      <div id="liveGuideText" class="live-guide-text">Tocca un pulsante per registrare subito il momento live.</div>
+      <div id="liveGuideWhy" class="live-guide-why">Più interazioni inserisci, più l’analitica diventa utile.</div>
+      <div class="actions">
+        <button id="btnLiveGuideAction" class="primary" type="button">Vai ora</button>
+        <button id="btnLiveGuideAltAction" class="ghost" type="button">Altro suggerimento</button>
+      </div>
+    </div>
+  </aside>
   <div id="floatingQuickPad" class="floating-quick-pad" hidden aria-label="Shortcut reazioni rapide">
     <button id="floatingQuickBubble" class="floating-quick-bubble" type="button" aria-label="Apri reazioni rapide" aria-expanded="false">⚡</button>
     <div id="floatingQuickShortcuts" class="floating-quick-shortcuts" hidden></div>
