@@ -518,6 +518,14 @@ const tutorialSkip = $("#tutorialSkip");
 const tutorialBack = $("#tutorialBack");
 const tutorialNext = $("#tutorialNext");
 const tutorialDone = $("#tutorialDone");
+const liveGuide = $("#liveGuide");
+const liveGuideToggle = $("#liveGuideToggle");
+const liveGuideCard = $("#liveGuideCard");
+const liveGuideTitle = $("#liveGuideTitle");
+const liveGuideText = $("#liveGuideText");
+const liveGuideWhy = $("#liveGuideWhy");
+const btnLiveGuideAction = $("#btnLiveGuideAction");
+const btnLiveGuideAltAction = $("#btnLiveGuideAltAction");
 
 const boostDot = $("#boostDot");
 const boostText = $("#boostText");
@@ -631,6 +639,9 @@ const ADMIN_SERATA_ACCESS_DOC = "serata_access";
 const LOGIN_NOTICE_KEY = "pulsantiera_login_notice";
 const TUTORIAL_SEEN_PREFIX = "pulsantiera_tutorial_seen";
 const TUTORIAL_VERSION = "v1";
+const WELCOME_SEEN_PREFIX = "pulsantiera_welcome_seen";
+const WELCOME_VERSION = "v1";
+const LIVE_GUIDE_COLLAPSED_KEY = "pulsantiera_live_guide_collapsed";
 const PREDICTION_FIELD_IDS = [
   "predPreShowPodium1","predPreShowPodium2","predPreShowPodium3","predPreShowLast",
   "predPreShowFree1","predPreShowFree2","predPreShowFree3",
@@ -704,6 +715,18 @@ const tutorialState = {
   key: "",
   index: 0,
   steps: [],
+};
+let liveGuideCollapsed = false;
+let liveGuideCurrentHint = null;
+let liveGuideFocusTimer = null;
+let liveGuideHintCycle = 0;
+const liveGuideAssist = {
+  active: false,
+  target: "",
+  baseline: null,
+  steps: [],
+  completed: false,
+  completedAt: 0,
 };
 let chartResizeTimer = null;
 let recapFilterValue = "all";
@@ -1761,11 +1784,42 @@ function setTab(tab){
 
 /* ---------- Toast ---------- */
 let toastTimer = null;
-function toast(msg){
+function toast(msg, durationMs = 1400){
   toastEl.textContent = msg;
   toastEl.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1400);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), Number(durationMs) || 1400);
+}
+
+function welcomeStorageKey(profile){
+  const username = slug(profile?.username || cloud.username || "guest");
+  const serata = String(profile?.serata || cloud.serata || "0");
+  return `${WELCOME_SEEN_PREFIX}_${WELCOME_VERSION}_${username}_s${serata}`;
+}
+
+function showWelcomeIfNeeded(profile){
+  if(!tutorialOverlay) return;
+  const key = welcomeStorageKey(profile);
+  let seen = false;
+  try{ seen = localStorage.getItem(key) === "1"; } catch {}
+  if(seen) return;
+  tutorialState.key = key;
+  tutorialState.open = true;
+  tutorialOverlay.dataset.mode = "welcome";
+  tutorialOverlay.hidden = false;
+  document.body.classList.add("tutorial-open");
+  if(tutorialStepCount) tutorialStepCount.textContent = "Benvenuto";
+  if(tutorialTitle) tutorialTitle.textContent = "Benvenuto nella Pulsantiera";
+  if(tutorialBody){
+    tutorialBody.textContent = "Qui puoi reagire in diretta, votare i cantanti con gli slider, fare predizioni e confrontarti nella tab Globale. Se non sai come procedere, usa il pulsante 💡 della guida e poi 'Altro suggerimento'.";
+  }
+  if(tutorialSkip) tutorialSkip.hidden = true;
+  if(tutorialBack) tutorialBack.hidden = true;
+  if(tutorialNext) tutorialNext.hidden = true;
+  if(tutorialDone){
+    tutorialDone.hidden = false;
+    tutorialDone.textContent = "Inizia";
+  }
 }
 
 function tutorialStorageKey(profile){
@@ -1830,6 +1884,18 @@ function closeTutorial(markSeen = true){
   if(!tutorialOverlay) return;
   tutorialState.open = false;
   tutorialOverlay.hidden = true;
+  tutorialOverlay.dataset.mode = "";
+  document.body.classList.remove("tutorial-open");
+  if(markSeen && tutorialState.key){
+    try{ localStorage.setItem(tutorialState.key, "1"); } catch {}
+  }
+}
+
+function closeWelcome(markSeen = true){
+  if(!tutorialOverlay) return;
+  tutorialState.open = false;
+  tutorialOverlay.hidden = true;
+  tutorialOverlay.dataset.mode = "";
   document.body.classList.remove("tutorial-open");
   if(markSeen && tutorialState.key){
     try{ localStorage.setItem(tutorialState.key, "1"); } catch {}
@@ -1846,6 +1912,7 @@ function startTutorialIfNeeded(profile){
   tutorialState.steps = tutorialSteps();
   tutorialState.index = 0;
   tutorialState.open = true;
+  tutorialOverlay.dataset.mode = "tutorial";
   tutorialOverlay.hidden = false;
   document.body.classList.add("tutorial-open");
   renderTutorialStep();
@@ -1867,12 +1934,553 @@ if(tutorialNext){
   });
 }
 if(tutorialDone){
-  tutorialDone.addEventListener("click", () => closeTutorial(true));
+  tutorialDone.addEventListener("click", () => {
+    if(tutorialOverlay?.dataset?.mode === "welcome"){
+      closeWelcome(true);
+      return;
+    }
+    closeTutorial(true);
+  });
 }
 window.addEventListener("keydown", (e) => {
   if(!tutorialState.open) return;
-  if(e.key === "Escape") closeTutorial(true);
+  if(e.key !== "Escape") return;
+  if(tutorialOverlay?.dataset?.mode === "welcome"){
+    closeWelcome(true);
+    return;
+  }
+  closeTutorial(true);
 });
+
+function loadLiveGuideCollapsed(){
+  try{
+    return localStorage.getItem(LIVE_GUIDE_COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveLiveGuideCollapsed(value){
+  try{
+    localStorage.setItem(LIVE_GUIDE_COLLAPSED_KEY, value ? "1" : "0");
+  } catch {}
+}
+
+function getActiveTabId(){
+  const active = $(".tab.active");
+  return String(active?.dataset?.tab || "quick");
+}
+
+function pickLiveGuideVariant(seedBase, variants){
+  const list = arr(variants).filter((v) => v && typeof v === "object");
+  if(list.length === 0) return null;
+  const idx = Math.abs(Number(seedBase || 0) + liveGuideHintCycle) % list.length;
+  return list[idx] || list[0];
+}
+
+function liveGuideHintKey(hint){
+  if(!hint || typeof hint !== "object") return "";
+  return `${String(hint.title || "")}|${String(hint.text || "")}|${String(hint.cta || "")}|${String(hint.target || "")}`;
+}
+
+function manualAlternativeLiveGuideHint(excludeTarget = ""){
+  const quickOn = featureControls.quickEnabled !== false;
+  const deepOn = featureControls.deepEnabled !== false;
+  const predOn = featureControls.predictionsEnabled !== false;
+  const candidates = [
+    quickOn ? {
+      title: "Prova una reazione rapida",
+      text: "Vai su Reazioni e registra il momento che sta succedendo adesso.",
+      why: "E l'azione piu veloce per mantenere viva la timeline.",
+      cta: "Apri Reazioni",
+      target: "quick",
+    } : null,
+    deepOn ? {
+      title: "Passa ai voti cantante",
+      text: "Valuta un artista con slider e tag.",
+      why: "Ti aggiunge dati utili per ranking e insight.",
+      cta: "Vai a Cantanti",
+      target: "deep",
+    } : null,
+    {
+      title: "Controlla i KPI adesso",
+      text: "Apri Analitica per vedere trend e termometro.",
+      why: "Ti aiuta a decidere la prossima azione.",
+      cta: "Apri Analitica",
+      target: "stats",
+    },
+    {
+      title: "Confrontati col pubblico",
+      text: "Vai in Globale per vedere medie e ranking utenti.",
+      why: "Capisci subito se sei allineato o fuori media.",
+      cta: "Apri Globale",
+      target: "global",
+    },
+    predOn ? {
+      title: "Aggiorna le predizioni",
+      text: "Salva o rivedi il tuo pronostico.",
+      why: "Ti lascia uno storico utile da confrontare a fine serata.",
+      cta: "Apri Predizioni",
+      target: "challenge",
+    } : null,
+  ].filter(Boolean);
+
+  if(candidates.length === 0) return null;
+  const filtered = candidates.filter((h) => String(h.target) !== String(excludeTarget || ""));
+  const pool = filtered.length ? filtered : candidates;
+  const idx = Math.abs(liveGuideHintCycle) % pool.length;
+  return pool[idx];
+}
+
+function forceNextLiveGuideHint(){
+  const prevKey = liveGuideHintKey(liveGuideCurrentHint);
+  const prevTarget = String(liveGuideCurrentHint?.target || "");
+  let tries = 0;
+  while(tries < 14){
+    liveGuideHintCycle += 1;
+    const candidate = buildLiveGuideHint();
+    const nextKey = liveGuideHintKey(candidate);
+    const nextTarget = String(candidate?.target || "");
+    const keyChanged = !prevKey || nextKey !== prevKey;
+    const targetChanged = !prevTarget || nextTarget !== prevTarget;
+    if(keyChanged && targetChanged){
+      liveGuideCurrentHint = candidate;
+      return;
+    }
+    if(keyChanged){
+      liveGuideCurrentHint = candidate;
+      return;
+    }
+    tries += 1;
+  }
+  const fallback = manualAlternativeLiveGuideHint(prevTarget);
+  liveGuideCurrentHint = fallback || buildLiveGuideHint();
+}
+
+function stopLiveGuideAssist(){
+  liveGuideAssist.active = false;
+  liveGuideAssist.target = "";
+  liveGuideAssist.baseline = null;
+  liveGuideAssist.steps = [];
+  liveGuideAssist.completed = false;
+  liveGuideAssist.completedAt = 0;
+}
+
+function buildLiveGuideHint(){
+  const quickOn = featureControls.quickEnabled !== false;
+  const deepOn = featureControls.deepEnabled !== false;
+  const predOn = featureControls.predictionsEnabled !== false;
+  const sequence = [
+    {
+      title: "Reagisci in diretta",
+      text: "Apri Reazioni e registra subito quello che sta succedendo ora.",
+      why: "Tieni viva la timeline live con input continui.",
+      cta: "Apri Reazioni",
+      target: "quick",
+    },
+    {
+      title: "Aggiungi un commento live",
+      text: "Nella tab Reazioni puoi inserire una nota opzionale al tap.",
+      why: "Il commento viene mostrato anche nelle reazioni globali.",
+      cta: "Commenta ora",
+      target: "quick",
+    },
+    {
+      title: "Vai ai voti cantante",
+      text: "Apri Cantanti e scegli l'artista da valutare.",
+      why: "I voti alimentano classifica personale e confronto globale.",
+      cta: "Vai a Cantanti",
+      target: "deep",
+    },
+    {
+      title: "Valuta con gli slider",
+      text: "Usa le barre performance/outfit/brano/riascolto e salva il voto.",
+      why: "Cosi il profilo del voto risulta completo e utile.",
+      cta: "Vota cantante",
+      target: "deep",
+    },
+    {
+      title: "Apri la schermata Predizioni",
+      text: "Passa a Predizioni e aggiorna il tuo pronostico.",
+      why: "Puoi seguire come cambia la previsione durante la serata.",
+      cta: "Apri Predizioni",
+      target: "challenge",
+    },
+    {
+      title: "Controlla l'Analitica",
+      text: "Vai in Analitica per vedere KPI, trend e andamento.",
+      why: "Ti aiuta a decidere la prossima azione in modo informato.",
+      cta: "Apri Analitica",
+      target: "stats",
+    },
+    {
+      title: "Confrontati in Globale",
+      text: "Apri Globale per confrontare medie, ranking e reazioni utenti.",
+      why: "Capisci subito se sei allineato con il pubblico.",
+      cta: "Apri Globale",
+      target: "global",
+    },
+  ];
+  const enabledSequence = sequence.filter((hint) => {
+    const target = String(hint?.target || "");
+    if(target === "quick") return quickOn;
+    if(target === "deep") return deepOn;
+    if(target === "challenge") return predOn;
+    return true;
+  });
+  if(enabledSequence.length === 0){
+    return {
+      title: "Controlli live momentaneamente chiusi",
+      text: "Apri Analitica o Globale per monitorare andamento e trend.",
+      why: "Quando i controlli tornano attivi, riprendi la sequenza hint.",
+      cta: "Apri Analitica",
+      target: "stats",
+    };
+  }
+  const idx = Math.abs(liveGuideHintCycle) % enabledSequence.length;
+  return enabledSequence[idx];
+}
+function pulseGuideTarget(el){
+  if(!el) return;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  if(typeof el.focus === "function"){
+    try{ el.focus({ preventScroll: true }); } catch { el.focus(); }
+  }
+  el.classList.add("live-guide-focus");
+  clearTimeout(liveGuideFocusTimer);
+  liveGuideFocusTimer = setTimeout(() => {
+    el.classList.remove("live-guide-focus");
+  }, 1600);
+}
+
+function liveGuideBaseMetrics(){
+  const quickVotes = state.actions.filter((a) => a.kind === "react" || a.kind === "event").length;
+  const deepVotes = arr(state.deepVotes).length;
+  return {
+    quickVotes,
+    deepVotes,
+    preShowDone: blockHasPrediction(state.challenge?.preShow),
+    preRankingDone: blockHasPrediction(state.challenge?.preRanking),
+    finaleCount: arr(state.challenge?.finaleHistory).length,
+  };
+}
+
+function createAssistSteps(target){
+  if(target === "deep"){
+    return [
+      {
+        title: "Apri tab Cantanti",
+        desc: "Vai nella sezione voto cantante.",
+        isDone: () => getActiveTabId() === "deep",
+        focus: () => document.querySelector('.tab[data-tab="deep"]'),
+      },
+      {
+        title: "Seleziona artista",
+        desc: "Scegli l'artista dal menu a tendina.",
+        isDone: () => !!getCurrentDeepTarget(),
+        focus: () => artistSelect,
+      },
+      {
+        title: "Salva il voto",
+        desc: "Regola slider/tag e premi Salva voto.",
+        isDone: () => arr(state.deepVotes).length > num(liveGuideAssist.baseline?.deepVotes, 0),
+        focus: () => btnSaveDeep,
+      },
+    ];
+  }
+  if(target === "challenge"){
+    return [
+      {
+        title: "Apri tab Predizioni",
+        desc: "Vai alla sezione predizioni.",
+        isDone: () => getActiveTabId() === "challenge",
+        focus: () => document.querySelector('.tab[data-tab="challenge"]'),
+      },
+      {
+        title: "Compila almeno un campo",
+        desc: "Inserisci almeno un cantante nel blocco pre-show.",
+        isDone: () => {
+          const ids = ["predPreShowPodium1", "predPreShowPodium2", "predPreShowPodium3", "predPreShowLast"];
+          return ids.some((id) => String($(`#${id}`)?.value || "").trim().length > 0);
+        },
+        focus: () => $("#predPreShowPodium1"),
+      },
+      {
+        title: "Salva la predizione",
+        desc: "Premi il pulsante di salvataggio.",
+        isDone: () => (
+          blockHasPrediction(state.challenge?.preShow) ||
+          blockHasPrediction(state.challenge?.preRanking) ||
+          arr(state.challenge?.finaleHistory).length > num(liveGuideAssist.baseline?.finaleCount, 0)
+        ),
+        focus: () => btnSavePreShow || btnSavePreRanking || btnAddFinaleSnapshot,
+      },
+    ];
+  }
+  if(target === "recap"){
+    return [
+      {
+        title: "Apri tab Resoconto",
+        desc: "Entra nel recap per leggere il trend.",
+        isDone: () => getActiveTabId() === "recap",
+        focus: () => document.querySelector('.tab[data-tab="recap"]'),
+      },
+      {
+        title: "Scegli filtro o punto grafico",
+        desc: "Tocca filtro/intervallo o un punto nel grafico.",
+        isDone: () => getActiveTabId() === "recap",
+        focus: () => recapFilterSelect || recapChart,
+      },
+    ];
+  }
+  if(target === "global"){
+    return [
+      {
+        title: "Apri tab Globale",
+        desc: "Vai nella sezione confronto utenti.",
+        isDone: () => getActiveTabId() === "global",
+        focus: () => document.querySelector('.tab[data-tab="global"]'),
+      },
+      {
+        title: "Aggiorna i dati globali",
+        desc: "Premi aggiorna o esplora il grafico globale.",
+        isDone: () => getActiveTabId() === "global",
+        focus: () => btnGlobalRefresh || globalChart,
+      },
+    ];
+  }
+  if(target === "stats"){
+    return [
+      {
+        title: "Apri tab Analitica",
+        desc: "Vai nella tua analisi personale.",
+        isDone: () => getActiveTabId() === "stats",
+        focus: () => document.querySelector('.tab[data-tab="stats"]'),
+      },
+      {
+        title: "Leggi un grafico KPI",
+        desc: "Usa filtri o grafico per vedere l'andamento.",
+        isDone: () => getActiveTabId() === "stats",
+        focus: () => chartPeriodSelect || chart,
+      },
+    ];
+  }
+  return [
+    {
+      title: "Apri tab Reazioni",
+      desc: "Vai alla pulsantiera live.",
+      isDone: () => getActiveTabId() === "quick",
+      focus: () => document.querySelector('.tab[data-tab="quick"]'),
+    },
+    {
+      title: "Aggiungi un commento (opzionale)",
+      desc: "Scrivi una nota sul momento live, oppure prosegui senza commento.",
+      optional: true,
+      isDone: () => {
+        const typed = String(quickNoteInput?.value || "").trim().length > 0;
+        const quickCount = state.actions.filter((a) => a.kind === "react" || a.kind === "event").length;
+        return typed || quickCount > num(liveGuideAssist.baseline?.quickVotes, 0);
+      },
+      focus: () => quickNoteInput,
+    },
+    {
+      title: "Invia una reazione",
+      desc: "Tocca un pulsante reazione per registrare il momento.",
+      isDone: () => state.actions.filter((a) => a.kind === "react" || a.kind === "event").length > num(liveGuideAssist.baseline?.quickVotes, 0),
+      focus: () => quickGrid?.querySelector("button[data-action='react']") || quickNoteInput,
+    },
+  ];
+}
+
+function updateAssistProgress(){
+  if(!liveGuideAssist.active) return;
+  let allDone = true;
+  for(const step of liveGuideAssist.steps){
+    step.done = !!step.forceDone || !!step.isDone?.();
+    if(!step.done) allDone = false;
+  }
+  liveGuideAssist.completed = allDone;
+  if(allDone && !liveGuideAssist.completedAt){
+    liveGuideAssist.completedAt = now();
+  }
+}
+
+function focusAssistCurrentStep(){
+  if(!liveGuideAssist.active) return;
+  updateAssistProgress();
+  if(liveGuideAssist.completed) return;
+  const step = liveGuideAssist.steps.find((s) => !s.done) || liveGuideAssist.steps[0];
+  if(!step) return;
+  const tabByStep = step.title.includes("Cantanti")
+    ? "deep"
+    : step.title.includes("Predizioni")
+      ? "challenge"
+      : step.title.includes("Resoconto")
+        ? "recap"
+        : step.title.includes("Reazioni")
+          ? "quick"
+          : "";
+  if(tabByStep) setTab(tabByStep);
+  setTimeout(() => {
+    const el = step.focus?.();
+    if(el) pulseGuideTarget(el);
+  }, 140);
+}
+
+function startLiveGuideAssist(target){
+  const t = String(target || "quick");
+  liveGuideAssist.active = true;
+  liveGuideAssist.target = t;
+  liveGuideAssist.baseline = liveGuideBaseMetrics();
+  liveGuideAssist.steps = createAssistSteps(t).map((s) => ({ ...s, done: false }));
+  liveGuideAssist.completed = false;
+  liveGuideAssist.completedAt = 0;
+  updateAssistProgress();
+}
+
+function runLiveGuideAction(){
+  if(liveGuideAssist.active){
+    updateAssistProgress();
+    if(liveGuideAssist.completed){
+      stopLiveGuideAssist();
+      forceNextLiveGuideHint();
+      renderLiveGuide({ preserveCurrentHint: true });
+      return;
+    }
+    const current = liveGuideAssist.steps.find((s) => !s.done) || null;
+    if(current?.optional){
+      current.forceDone = true;
+      updateAssistProgress();
+      renderLiveGuide({ preserveCurrentHint: true });
+    }
+    focusAssistCurrentStep();
+    return;
+  }
+
+  const target = String(liveGuideCurrentHint?.target || "quick");
+  const openTabAndPulse = (tabId, resolver) => {
+    setTab(tabId);
+    setTimeout(() => {
+      const el = typeof resolver === "function" ? resolver() : null;
+      if(el) pulseGuideTarget(el);
+    }, 140);
+  };
+
+  if(target === "deep"){
+    openTabAndPulse("deep", () => artistSelect || $("#btnSaveDeep"));
+    startLiveGuideAssist(target);
+    renderLiveGuide();
+    return;
+  }
+  if(target === "challenge"){
+    openTabAndPulse("challenge", () => $("#predPreShowPodium1") || btnSavePreShow);
+    startLiveGuideAssist(target);
+    renderLiveGuide();
+    return;
+  }
+  if(target === "recap"){
+    openTabAndPulse("recap", () => recapFilterSelect || recapChart);
+    startLiveGuideAssist(target);
+    renderLiveGuide();
+    return;
+  }
+  if(target === "global"){
+    openTabAndPulse("global", () => btnGlobalRefresh || globalChart);
+    startLiveGuideAssist(target);
+    renderLiveGuide();
+    return;
+  }
+  if(target === "stats"){
+    openTabAndPulse("stats", () => chartPeriodSelect || chart);
+    startLiveGuideAssist(target);
+    renderLiveGuide();
+    return;
+  }
+  openTabAndPulse("quick", () => quickGrid?.querySelector("button[data-action='react']") || quickNoteInput);
+  startLiveGuideAssist("quick");
+  renderLiveGuide();
+}
+
+function applyLiveGuideCollapsedUI(){
+  if(!liveGuide || !liveGuideToggle) return;
+  liveGuide.classList.toggle("is-collapsed", liveGuideCollapsed);
+  liveGuideToggle.setAttribute("aria-expanded", liveGuideCollapsed ? "false" : "true");
+  liveGuideToggle.title = liveGuideCollapsed ? "Apri guida" : "Riduci guida";
+}
+
+function renderLiveGuide(options = {}){
+  const preserveCurrentHint = !!options.preserveCurrentHint;
+  if(!liveGuide || !liveGuideTitle || !liveGuideText || !liveGuideWhy || !btnLiveGuideAction) return;
+  if(liveGuideAssist.active){
+    updateAssistProgress();
+    const total = liveGuideAssist.steps.length || 1;
+    const completed = liveGuideAssist.steps.filter((s) => s.done).length;
+    if(liveGuideAssist.completed){
+      liveGuideTitle.textContent = "Azione completata ✅";
+      liveGuideText.textContent = "Perfetto: ora hai completato il flusso guidato.";
+      liveGuideWhy.textContent = "Premi sotto per tornare ai suggerimenti dinamici.";
+      btnLiveGuideAction.textContent = "Mostra nuovo hint";
+      if(btnLiveGuideAltAction){
+        btnLiveGuideAltAction.hidden = false;
+        btnLiveGuideAltAction.textContent = "Suggerimento diverso";
+      }
+    } else {
+      const current = liveGuideAssist.steps.find((s) => !s.done) || liveGuideAssist.steps[0];
+      liveGuideTitle.textContent = `Guida assistita ${completed + 1}/${total}`;
+      liveGuideText.textContent = current?.title || "Completa il prossimo passo";
+      liveGuideWhy.textContent = current?.desc || "Segui il suggerimento per concludere l'azione.";
+      btnLiveGuideAction.textContent = "Mostrami passo";
+      if(btnLiveGuideAltAction){
+        btnLiveGuideAltAction.hidden = false;
+        btnLiveGuideAltAction.textContent = "Salta guida";
+      }
+    }
+    if(liveGuideCard) liveGuideCard.hidden = !!liveGuideCollapsed;
+    applyLiveGuideCollapsedUI();
+    return;
+  }
+  if(!preserveCurrentHint || !liveGuideCurrentHint){
+    liveGuideCurrentHint = buildLiveGuideHint();
+  }
+  liveGuideTitle.textContent = liveGuideCurrentHint.title;
+  liveGuideText.textContent = liveGuideCurrentHint.text;
+  liveGuideWhy.textContent = liveGuideCurrentHint.why;
+  btnLiveGuideAction.textContent = liveGuideCurrentHint.cta || "Vai ora";
+  if(btnLiveGuideAltAction){
+    btnLiveGuideAltAction.hidden = false;
+    btnLiveGuideAltAction.textContent = "Altro suggerimento";
+  }
+  if(liveGuideCard) liveGuideCard.hidden = !!liveGuideCollapsed;
+  applyLiveGuideCollapsedUI();
+}
+
+if(liveGuideToggle){
+  liveGuideToggle.addEventListener("click", () => {
+    liveGuideCollapsed = !liveGuideCollapsed;
+    if(!liveGuideCollapsed){
+      if(liveGuideAssist.active){
+        liveGuideAssist.active = false;
+        liveGuideAssist.steps = [];
+        liveGuideAssist.completed = false;
+        liveGuideAssist.completedAt = 0;
+      }
+      forceNextLiveGuideHint();
+    }
+    saveLiveGuideCollapsed(liveGuideCollapsed);
+    renderLiveGuide({ preserveCurrentHint: true });
+    applyLiveGuideCollapsedUI();
+  });
+}
+if(btnLiveGuideAction){
+  btnLiveGuideAction.addEventListener("click", () => runLiveGuideAction());
+}
+if(btnLiveGuideAltAction){
+  btnLiveGuideAltAction.addEventListener("click", () => {
+    stopLiveGuideAssist();
+    forceNextLiveGuideHint();
+    renderLiveGuide({ preserveCurrentHint: true });
+  });
+}
 
 /* ---------- Haptics (where supported) ---------- */
 function vibrate(ms=12){
@@ -4615,6 +5223,7 @@ function renderAll(){
   renderTimeline();
   renderDeepList();
   applyFeatureControlsUI();
+  renderLiveGuide();
   // stats refresh if on stats tab
   if($("#tab-stats").classList.contains("active")) renderStats();
   if($("#tab-global").classList.contains("active")) renderGlobalStats();
@@ -4732,6 +5341,7 @@ async function bootApp(){
   pushRuntimeDebug("artists load completed");
 
   state = loadState();
+  liveGuideCollapsed = loadLiveGuideCollapsed();
   initTogglesFromState();
   setDeepTarget("");
   redrawChartsForViewport();
@@ -4784,7 +5394,7 @@ async function bootApp(){
   await pullCloudState();
   pushRuntimeDebug("cloud state pull completed");
   renderAll();
-  startTutorialIfNeeded(profile);
+  showWelcomeIfNeeded(profile);
   setupCloudFlushOnExit();
   pushRuntimeDebug("bootApp completed");
 }
